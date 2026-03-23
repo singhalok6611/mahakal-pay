@@ -1,0 +1,122 @@
+import { useState } from 'react';
+import { createRetailer } from '../../api/distributor.api';
+import toast from 'react-hot-toast';
+import { FiUserPlus } from 'react-icons/fi';
+
+export default function DistributorCreateRetailer() {
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    shop_name: '',
+    city: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await createRetailer(form);
+      toast.success('Retailer created successfully!');
+      setForm({ name: '', email: '', phone: '', password: '', shop_name: '', city: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to create retailer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h4 className="fw-bold mb-4">
+        <FiUserPlus className="me-2" />
+        Create Retailer
+      </h4>
+
+      <div className="card border-0 shadow-sm" style={{ maxWidth: 600 }}>
+        <div className="card-header bg-primary text-white">
+          <h6 className="mb-0">New Retailer Registration</h6>
+        </div>
+        <div className="card-body">
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3">
+              <label className="form-label">Full Name *</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Enter full name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Email *</label>
+              <input
+                type="email"
+                className="form-control"
+                placeholder="Enter email address"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Phone *</label>
+              <input
+                type="tel"
+                className="form-control"
+                placeholder="Enter 10-digit phone number"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Password *</label>
+              <input
+                type="password"
+                className="form-control"
+                placeholder="Set login password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">Shop Name</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Enter shop/business name"
+                value={form.shop_name}
+                onChange={(e) => setForm({ ...form, shop_name: e.target.value })}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="form-label">City</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Enter city"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary w-100 py-2 fw-bold" disabled={loading}>
+              {loading ? 'Creating...' : 'Create Retailer'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
