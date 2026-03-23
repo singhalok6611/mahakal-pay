@@ -1,21 +1,18 @@
 const path = require('path');
 const fs = require('fs');
 
-// Detect environment
 const isVercel = !!process.env.VERCEL;
 let db;
 
 if (isVercel) {
-  // Use sql.js (pure JS) on Vercel serverless
+  // Use sql.js (pure JavaScript SQLite) on Vercel serverless
   const initSqlJs = require('sql.js');
   const dbPath = '/tmp/mahakal.db';
 
-  // Synchronous-ish init using a cached promise
-  let dbReady = false;
   let dbInstance = null;
+  let initialized = false;
 
-  // Create a synchronous wrapper around sql.js
-  const sqlPromise = initSqlJs().then(SQL => {
+  const initPromise = initSqlJs().then(SQL => {
     let data = null;
     try {
       if (fs.existsSync(dbPath)) {
@@ -23,118 +20,97 @@ if (isVercel) {
       }
     } catch (e) {}
 
-    if (data) {
-      dbInstance = new SQL.Database(data);
-    } else {
-      dbInstance = new SQL.Database();
-    }
+    dbInstance = data ? new SQL.Database(data) : new SQL.Database();
 
-    // Run migrations
-    const schemaPath = path.join(__dirname, '../db/schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
+    // Run schema
+    const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
     dbInstance.run(schema);
 
     // Run seed
-    const seedPath = path.join(__dirname, '../db/seed.sql');
-    const seed = fs.readFileSync(seedPath, 'utf8');
+    const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
     dbInstance.run(seed);
 
-    // Save to disk
-    const buffer = dbInstance.export();
-    fs.writeFileSync(dbPath, Buffer.from(buffer));
-
-    dbReady = true;
+    // Save
+    fs.writeFileSync(dbPath, Buffer.from(dbInstance.export()));
+    initialized = true;
     return dbInstance;
   });
 
-  // Create a proxy that wraps sql.js with better-sqlite3 compatible API
-  const handler = {
-    get(target, prop) {
-      if (prop === '_sqlPromise') return sqlPromise;
-      if (prop === '_isReady') return dbReady;
-      if (prop === '_getInstance') return () => dbInstance;
-
-      if (prop === 'prepare') {
-        return (sql) => {
-          return {
-            get(...params) {
-              if (!dbInstance) throw new Error('DB not ready');
-              const stmt = dbInstance.prepare(sql);
-              if (params.length > 0) stmt.bind(params);
-              if (stmt.step()) {
-                const row = stmt.getAsObject();
-                stmt.free();
-                return row;
-              }
-              stmt.free();
-              return undefined;
-            },
-            all(...params) {
-              if (!dbInstance) throw new Error('DB not ready');
-              const results = [];
-              const stmt = dbInstance.prepare(sql);
-              if (params.length > 0) stmt.bind(params);
-              while (stmt.step()) {
-                results.push(stmt.getAsObject());
-              }
-              stmt.free();
-              return results;
-            },
-            run(...params) {
-              if (!dbInstance) throw new Error('DB not ready');
-              dbInstance.run(sql, params);
-              // Save after writes
-              const buffer = dbInstance.export();
-              fs.writeFileSync(dbPath, Buffer.from(buffer));
-              return {
-                lastInsertRowid: dbInstance.exec("SELECT last_insert_rowid()")[0]?.values[0]?.[0],
-                changes: dbInstance.getRowsModified(),
-              };
-            },
-          };
-        };
-      }
-
-      if (prop === 'exec') {
-        return (sql) => {
-          if (!dbInstance) throw new Error('DB not ready');
-          dbInstance.run(sql);
-          const buffer = dbInstance.export();
-          fs.writeFileSync(dbPath, Buffer.from(buffer));
-        };
-      }
-
-      if (prop === 'pragma') {
-        return () => {}; // no-op for sql.js
-      }
-
-      if (prop === 'transaction') {
-        return (fn) => {
-          return (...args) => {
-            if (!dbInstance) throw new Error('DB not ready');
-            dbInstance.run('BEGIN TRANSACTION');
-            try {
-              const result = fn(...args);
-              dbInstance.run('COMMIT');
-              const buffer = dbInstance.export();
-              fs.writeFileSync(dbPath, Buffer.from(buffer));
-              return result;
-            } catch (e) {
-              dbInstance.run('ROLLBACK');
-              throw e;
-            }
-          };
-        };
-      }
-
-      return undefined;
+  function save() {
+    if (dbInstance) {
+      fs.writeFileSync(dbPath, Buffer.from(dbInstance.export()));
     }
-  };
+  }
 
-  db = new Proxy({}, handler);
+  db = {
+    _initPromise: initPromise,
+    get _ready() { return initialized; },
+
+    pragma() {},
+
+    prepare(sql) {
+      return {
+        get(...params) {
+          if (!dbInstance) throw new Error('DB not initialized');
+          const stmt = dbInstance.prepare(sql);
+          if (params.length > 0) stmt.bind(params);
+          let row;
+          if (stmt.step()) {
+            row = stmt.getAsObject();
+          }
+          stmt.free();
+          return row || undefined;
+        },
+        all(...params) {
+          if (!dbInstance) throw new Error('DB not initialized');
+          const results = [];
+          const stmt = dbInstance.prepare(sql);
+          if (params.length > 0) stmt.bind(params);
+          while (stmt.step()) {
+            results.push(stmt.getAsObject());
+          }
+          stmt.free();
+          return results;
+        },
+        run(...params) {
+          if (!dbInstance) throw new Error('DB not initialized');
+          dbInstance.run(sql, params);
+          save();
+          const lastId = dbInstance.exec("SELECT last_insert_rowid()");
+          return {
+            lastInsertRowid: lastId[0]?.values[0]?.[0] || 0,
+            changes: dbInstance.getRowsModified(),
+          };
+        },
+      };
+    },
+
+    exec(sql) {
+      if (!dbInstance) throw new Error('DB not initialized');
+      dbInstance.run(sql);
+      save();
+    },
+
+    transaction(fn) {
+      return (...args) => {
+        if (!dbInstance) throw new Error('DB not initialized');
+        dbInstance.run('BEGIN TRANSACTION');
+        try {
+          const result = fn(...args);
+          dbInstance.run('COMMIT');
+          save();
+          return result;
+        } catch (e) {
+          dbInstance.run('ROLLBACK');
+          throw e;
+        }
+      };
+    },
+  };
 } else {
-  // Use better-sqlite3 for local development
-  const Database = require('better-sqlite3');
+  // Local dev: use better-sqlite3 (dynamic require to prevent Vercel bundler from including it)
+  const moduleName = 'better-sqlite3';
+  const Database = require(moduleName);
 
   let dbPath;
   if (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH)) {
@@ -152,14 +128,10 @@ if (isVercel) {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 
-  // Run migrations
-  const schemaPath = path.join(__dirname, '../db/schema.sql');
-  const schema = fs.readFileSync(schemaPath, 'utf8');
+  const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
   db.exec(schema);
 
-  // Run seed
-  const seedPath = path.join(__dirname, '../db/seed.sql');
-  const seed = fs.readFileSync(seedPath, 'utf8');
+  const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
   db.exec(seed);
 }
 

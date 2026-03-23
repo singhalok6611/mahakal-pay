@@ -5,7 +5,8 @@
   "installCommand": "cd server && npm install && cd ../client && npm install",
   "functions": {
     "api/index.js": {
-      "includeFiles": "server/**"
+      "includeFiles": "server/**",
+      "excludeFiles": "server/node_modules/better-sqlite3/**"
     }
   },
   "rewrites": [

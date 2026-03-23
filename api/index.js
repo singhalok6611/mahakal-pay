@@ -12,26 +12,25 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
-// Middleware to ensure DB is ready
+// Wait for DB init on every request
 app.use(async (req, res, next) => {
   try {
     const db = require('../server/src/config/db');
-    if (db._sqlPromise && !db._isReady) {
-      await db._sqlPromise;
+    if (db._initPromise && !db._ready) {
+      await db._initPromise;
     }
     next();
   } catch (err) {
-    res.status(500).json({ error: 'Database initialization failed: ' + err.message });
+    console.error('DB init error:', err);
+    res.status(500).json({ error: 'Database init failed: ' + err.message });
   }
 });
 
-// API Routes
 app.use('/api/auth', require('../server/src/routes/auth.routes'));
 app.use('/api/admin', require('../server/src/routes/admin.routes'));
 app.use('/api/distributor', require('../server/src/routes/distributor.routes'));
 app.use('/api/retailer', require('../server/src/routes/retailer.routes'));
 app.use('/api', require('../server/src/routes/public.routes'));
-
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.use(errorHandler);
