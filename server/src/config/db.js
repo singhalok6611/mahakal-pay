@@ -108,9 +108,14 @@ if (isVercel) {
     },
   };
 } else {
-  // Local dev: use better-sqlite3 (dynamic require to prevent Vercel bundler from including it)
-  const moduleName = 'better-sqlite3';
-  const Database = require(moduleName);
+  // Local dev: use better-sqlite3
+  let Database;
+  try {
+    const moduleName = 'better-sqlite3';
+    Database = require(moduleName);
+  } catch (e) {
+    throw new Error('better-sqlite3 not available. Set VERCEL=1 to use sql.js instead.');
+  }
 
   let dbPath;
   if (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH)) {
