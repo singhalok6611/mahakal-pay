@@ -1,12 +1,11 @@
 {
   "version": 2,
-  "buildCommand": "cd client && npm install && npx vite build",
+  "installCommand": "npm install && cd server && npm install && cd ../client && npm install",
+  "buildCommand": "cd client && npx vite build",
   "outputDirectory": "client/dist",
-  "installCommand": "cd server && npm install && cd ../client && npm install",
   "functions": {
     "api/index.js": {
-      "includeFiles": "server/**",
-      "excludeFiles": "server/node_modules/better-sqlite3/**"
+      "includeFiles": "server/**"
     }
   },
   "rewrites": [
