@@ -1,17 +1,66 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mahakal Pay">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Mahakal Pay">
   <title>Mahakal Pay</title>
   <defs>
-    <linearGradient id="mahakal-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0d1b4a"/>
-      <stop offset="50%" stop-color="#1a237e"/>
-      <stop offset="100%" stop-color="#4a148c"/>
+    <!-- vivid purple → indigo radial, like PhonePe / GPay style -->
+    <radialGradient id="mhk-circle" cx="35%" cy="30%" r="80%">
+      <stop offset="0%"   stop-color="#8b5cf6"/>
+      <stop offset="55%"  stop-color="#6d28d9"/>
+      <stop offset="100%" stop-color="#3b0764"/>
+    </radialGradient>
+    <linearGradient id="mhk-gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#fef3c7"/>
+      <stop offset="50%"  stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
     </linearGradient>
+    <filter id="mhk-soft-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+    <filter id="mhk-bolt-glow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
   </defs>
-  <rect width="64" height="64" rx="14" fill="url(#mahakal-bg)"/>
-  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-  <path d="M14 46 L14 14 L32 32 L50 14 L50 46"
-        fill="none" stroke="#ffffff" stroke-width="7"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="20" y1="54" x2="44" y2="54"
-        stroke="#ffc107" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- pulsing outer halo -->
+  <circle cx="40" cy="40" r="36" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0">
+    <animate attributeName="r" values="34;40;34" dur="2.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0;0.5;0" dur="2.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- main circle badge -->
+  <circle cx="40" cy="40" r="34" fill="url(#mhk-circle)" filter="url(#mhk-soft-shadow)"/>
+  <!-- subtle inner ring -->
+  <circle cx="40" cy="40" r="32" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1"/>
+  <!-- gold edge ring -->
+  <circle cx="40" cy="40" r="33.5" fill="none" stroke="#fbbf24" stroke-opacity="0.55" stroke-width="0.8"/>
+
+  <!-- glassmorphism shine on top-left -->
+  <ellipse cx="28" cy="22" rx="20" ry="12" fill="#ffffff" opacity="0.18"/>
+
+  <!-- bold "M" wordmark in white, italic-like slant via skew on x -->
+  <text x="40" y="55"
+        text-anchor="middle"
+        font-family="Inter, system-ui, -apple-system, sans-serif"
+        font-weight="900"
+        font-size="44"
+        fill="#ffffff"
+        letter-spacing="-2">M</text>
+
+  <!-- gold lightning bolt accent crossing the M -->
+  <g filter="url(#mhk-bolt-glow)">
+    <path d="M52 18 L44 32 L51 32 L46 46"
+          fill="none"
+          stroke="url(#mhk-gold)"
+          stroke-width="3.5"
+          stroke-linecap="round"
+          stroke-linejoin="round">
+      <animate attributeName="stroke-opacity"
+               values="1;0.6;1;0.85;1"
+               dur="1.6s"
+               repeatCount="indefinite"/>
+    </path>
+  </g>
 </svg>
