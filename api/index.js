@@ -10,7 +10,9 @@ const app = express();
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf.toString('utf8'); },
+}));
 
 // Wait for DB init on every request
 app.use(async (req, res, next) => {
@@ -27,6 +29,7 @@ app.use(async (req, res, next) => {
 });
 
 app.use('/api/auth', require('../server/src/routes/auth.routes'));
+app.use('/api/payment', require('../server/src/routes/payment.routes'));
 app.use('/api/admin', require('../server/src/routes/admin.routes'));
 app.use('/api/distributor', require('../server/src/routes/distributor.routes'));
 app.use('/api/retailer', require('../server/src/routes/retailer.routes'));

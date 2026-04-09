@@ -1,7 +1,24 @@
 const bcrypt = require('bcryptjs');
-const { signToken } = require('../config/jwt');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+} = require('../config/jwt');
 const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
+const RefreshTokenModel = require('../models/refreshToken.model');
+
+function issueTokens(user, req) {
+  const accessToken = signAccessToken({ id: user.id, role: user.role });
+  const { token: refreshToken } = signRefreshToken({ id: user.id, role: user.role });
+  RefreshTokenModel.create({
+    userId: user.id,
+    token: refreshToken,
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip,
+  });
+  return { accessToken, refreshToken };
+}
 
 const AuthController = {
   login(req, res) {
@@ -25,11 +42,14 @@ const AuthController = {
       return res.status(403).json({ error: 'Account is ' + user.status });
     }
 
-    const token = signToken({ id: user.id, role: user.role });
+    const { accessToken, refreshToken } = issueTokens(user, req);
     const wallet = WalletModel.getByUserId(user.id);
 
     res.json({
-      token,
+      // `token` kept for backwards compatibility with old client builds
+      token: accessToken,
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,
@@ -41,6 +61,61 @@ const AuthController = {
       },
       balance: wallet ? wallet.balance : 0,
     });
+  },
+
+  refresh(req, res) {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token required' });
+    }
+
+    let payload;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch (err) {
+      return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    }
+
+    const stored = RefreshTokenModel.findValidByToken(refreshToken);
+    if (!stored) {
+      // Token reuse / revoked / unknown — kill all sessions for this user as a safety measure
+      if (payload && payload.id) {
+        RefreshTokenModel.revokeAllForUser(payload.id);
+      }
+      return res.status(401).json({ error: 'Refresh token not recognized' });
+    }
+
+    const user = UserModel.findById(payload.id);
+    if (!user || user.status !== 'active') {
+      RefreshTokenModel.revokeById(stored.id);
+      return res.status(401).json({ error: 'User no longer active' });
+    }
+
+    // Rotate: issue new pair, mark old as revoked + replaced
+    const { accessToken, refreshToken: newRefreshToken } = issueTokens(user, req);
+    const newStored = RefreshTokenModel.findValidByToken(newRefreshToken);
+    RefreshTokenModel.revokeById(stored.id, newStored ? newStored.id : null);
+
+    res.json({
+      accessToken,
+      refreshToken: newRefreshToken,
+      token: accessToken, // legacy alias
+    });
+  },
+
+  logout(req, res) {
+    const { refreshToken } = req.body || {};
+    if (refreshToken) {
+      RefreshTokenModel.revokeByToken(refreshToken);
+    }
+    res.json({ message: 'Logged out' });
+  },
+
+  logoutAll(req, res) {
+    if (req.user && req.user.id) {
+      RefreshTokenModel.revokeAllForUser(req.user.id);
+    }
+    res.json({ message: 'Logged out from all devices' });
   },
 
   me(req, res) {
@@ -67,7 +142,10 @@ const AuthController = {
     const hash = bcrypt.hashSync(newPassword, 10);
     require('../config/db').prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(hash, req.user.id);
 
-    res.json({ message: 'Password changed successfully' });
+    // Force re-login on all devices after password change
+    RefreshTokenModel.revokeAllForUser(req.user.id);
+
+    res.json({ message: 'Password changed successfully. Please log in again.' });
   },
 };
 

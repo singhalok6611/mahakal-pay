@@ -35,7 +35,8 @@ export default function Footer() {
           <div className="col-lg-3 col-md-6">
             <h6 className="mb-3 text-white">Contact Info</h6>
             <ul className="list-unstyled">
-              <li className="mb-2 text-white-50">support@mahakal.com</li>
+              <li className="mb-2 text-white-50">support@mahakalpay.in</li>
+              <li className="mb-2 text-white-50">www.mahakalpay.in</li>
               <li className="mb-2 text-white-50">+91 9999999999</li>
               <li className="mb-2 text-white-50">Mon - Sat: 10AM - 6PM</li>
             </ul>

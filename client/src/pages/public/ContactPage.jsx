@@ -79,7 +79,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h6 className="fw-bold mb-1" style={{ fontSize: '1.05rem' }}>Email</h6>
-                    <p className="mb-0" style={{ color: '#666' }}>support@mahakal.com</p>
+                    <p className="mb-0" style={{ color: '#666' }}>support@mahakalpay.in</p>
                   </div>
                 </div>
                 <div className="d-flex align-items-start gap-3">

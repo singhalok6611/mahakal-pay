@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
-import { login as loginApi, getMe } from '../api/auth.api';
+import { login as loginApi, getMe, logout as logoutApi } from '../api/auth.api';
+import { tokenStore } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -8,7 +9,7 @@ export function AuthProvider({ children }) {
     const saved = localStorage.getItem('user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [token, setToken] = useState(() => localStorage.getItem('token'));
+  const [token, setToken] = useState(() => tokenStore.getAccess());
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -31,18 +32,21 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const res = await loginApi(email, password);
-    const { token: newToken, user: newUser, balance: newBalance } = res.data;
-    localStorage.setItem('token', newToken);
+    const { accessToken, refreshToken, user: newUser, balance: newBalance } = res.data;
+    tokenStore.set({ accessToken, refreshToken });
     localStorage.setItem('user', JSON.stringify(newUser));
-    setToken(newToken);
+    setToken(accessToken);
     setUser(newUser);
     setBalance(newBalance);
     return newUser;
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const logout = async () => {
+    const refreshToken = tokenStore.getRefresh();
+    try {
+      if (refreshToken) await logoutApi(refreshToken);
+    } catch {}
+    tokenStore.clear();
     setToken(null);
     setUser(null);
     setBalance(0);

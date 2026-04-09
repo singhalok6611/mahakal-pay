@@ -5,7 +5,7 @@ const faqs = [
   },
   {
     q: 'How to register at this site?',
-    a: 'To register as a retailer, you need to contact a distributor. Distributors are created by the admin. Contact us at support@mahakal.com for more details on how to get started.',
+    a: 'To register as a retailer, you need to contact a distributor. Distributors are created by the admin. Contact us at support@mahakalpay.in for more details on how to get started.',
   },
   {
     q: 'Can I recharge any number at this website?',
@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: 'How to become an Online Distributor/Retailer?',
-    a: 'You can join us as our business partner. We are offering recharge facility to our business partners. If you want to start local business in your town or territory, contact us at support@mahakal.com.',
+    a: 'You can join us as our business partner. We are offering recharge facility to our business partners. If you want to start local business in your town or territory, contact us at support@mahakalpay.in.',
   },
   {
     q: 'How can I add funds to my account?',

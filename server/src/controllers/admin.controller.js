@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
+const PlatformFeeModel = require('../models/platformFee.model');
 const db = require('../config/db');
 
 const AdminController = {
@@ -304,6 +305,13 @@ const AdminController = {
     `).all(...params, parseInt(limit), offset);
     const total = db.prepare(`SELECT COUNT(*) as count FROM wallet_transactions wt ${where}`).get(...params).count;
     res.json({ transactions, total, page: parseInt(page), limit: parseInt(limit) });
+  },
+
+  platformFees(req, res) {
+    const { page = 1, limit = 50, from, to } = req.query;
+    const list = PlatformFeeModel.list({ page: parseInt(page), limit: parseInt(limit), from, to });
+    const totals = PlatformFeeModel.totals();
+    res.json({ ...list, totals, feePct: PlatformFeeModel.getFeePct() });
   },
 };
 

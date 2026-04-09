@@ -1,5 +1,7 @@
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
+const PlatformFeeModel = require('../models/platformFee.model');
+const CyrusService = require('../services/cyrus.service');
 const db = require('../config/db');
 
 const RetailerController = {
@@ -26,7 +28,7 @@ const RetailerController = {
     res.json(result);
   },
 
-  recharge(req, res) {
+  async recharge(req, res) {
     const { service_type, operator, subscriber_id, amount } = req.body;
 
     if (!service_type || !operator || !subscriber_id || !amount) {
@@ -49,38 +51,73 @@ const RetailerController = {
       return res.status(400).json({ error: 'Invalid operator' });
     }
 
+    let txn;
     try {
-      // Debit wallet
+      // 1) Debit wallet up-front
       WalletModel.debit(req.user.id, parsedAmount, 'recharge', null, `${service_type} recharge - ${subscriber_id}`);
 
-      // Calculate commission
-      const commission = (parsedAmount * op.commission_pct) / 100;
-
-      // Create transaction
-      const txn = TransactionModel.create({
+      // 2) Create transaction in 'processing' state
+      txn = TransactionModel.create({
         user_id: req.user.id,
         service_type,
         operator: op.name,
         subscriber_id,
         amount: parsedAmount,
-        status: 'success', // Simulated - in production this would be 'processing' until API callback
-        commission,
-      });
-
-      // Credit commission back to retailer
-      if (commission > 0) {
-        WalletModel.credit(req.user.id, commission, 'commission', txn.id, `Commission for ${service_type} recharge`);
-      }
-
-      const wallet = WalletModel.getByUserId(req.user.id);
-      res.json({
-        message: 'Recharge successful',
-        transaction: txn,
-        balance: wallet.balance,
+        status: 'processing',
+        commission: 0,
       });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      return res.status(400).json({ error: err.message });
     }
+
+    // 3) Call Cyrus (or mock)
+    let cyrusResult;
+    try {
+      cyrusResult = await CyrusService.recharge({
+        transactionId: txn.id,
+        operatorCode: op.code,
+        number: subscriber_id,
+        amount: parsedAmount,
+      });
+    } catch (err) {
+      cyrusResult = { status: 'failed', message: err.message, apiTxnId: null };
+    }
+
+    // 4) Update transaction status from API result
+    TransactionModel.updateStatus(txn.id, cyrusResult.status, cyrusResult.apiTxnId);
+
+    if (cyrusResult.status === 'failed') {
+      // Refund the wallet — recharge didn't go through
+      WalletModel.credit(req.user.id, parsedAmount, 'refund', txn.id, `Refund for failed recharge #${txn.id}`);
+      const wallet = WalletModel.getByUserId(req.user.id);
+      return res.status(400).json({
+        error: cyrusResult.message || 'Recharge failed',
+        transaction: TransactionModel.findById(txn.id),
+        balance: wallet ? wallet.balance : 0,
+      });
+    }
+
+    // 5) On success: pay commission to retailer + apply 1% platform fee to admin
+    if (cyrusResult.status === 'success') {
+      const commission = Math.round(((parsedAmount * op.commission_pct) / 100) * 100) / 100;
+      if (commission > 0) {
+        WalletModel.credit(req.user.id, commission, 'commission', txn.id, `Commission for ${service_type} recharge`);
+        db.prepare('UPDATE transactions SET commission = ? WHERE id = ?').run(commission, txn.id);
+      }
+      PlatformFeeModel.apply({
+        userId: req.user.id,
+        sourceType: 'recharge',
+        sourceId: txn.id,
+        baseAmount: parsedAmount,
+      });
+    }
+
+    const wallet = WalletModel.getByUserId(req.user.id);
+    res.json({
+      message: cyrusResult.status === 'success' ? 'Recharge successful' : 'Recharge processing',
+      transaction: TransactionModel.findById(txn.id),
+      balance: wallet.balance,
+    });
   },
 
   getOperators(req, res) {

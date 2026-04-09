@@ -14,10 +14,14 @@ const app = express();
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
-app.use(express.json());
+// Capture raw body so payment webhook signature verification works
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf.toString('utf8'); },
+}));
 
 // API Routes
 app.use('/api/auth', require('./routes/auth.routes'));
+app.use('/api/payment', require('./routes/payment.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/distributor', require('./routes/distributor.routes'));
 app.use('/api/retailer', require('./routes/retailer.routes'));

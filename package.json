@@ -10,6 +10,7 @@
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "razorpay": "^2.9.6",
     "sql.js": "^1.14.1"
   }
 }

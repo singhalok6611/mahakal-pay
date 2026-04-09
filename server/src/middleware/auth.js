@@ -1,4 +1,4 @@
-const { verifyToken } = require('../config/jwt');
+const { verifyAccessToken } = require('../config/jwt');
 const db = require('../config/db');
 
 function authenticate(req, res, next) {
@@ -9,7 +9,7 @@ function authenticate(req, res, next) {
 
   try {
     const token = header.split(' ')[1];
-    const decoded = verifyToken(token);
+    const decoded = verifyAccessToken(token);
     const user = db.prepare('SELECT id, role, parent_id, name, email, phone, status FROM users WHERE id = ?').get(decoded.id);
 
     if (!user) {

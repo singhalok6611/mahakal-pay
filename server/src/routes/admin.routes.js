@@ -22,5 +22,6 @@ router.get('/settings', AdminController.getSettings);
 router.put('/settings', AdminController.updateSettings);
 router.post('/users/retailer', AdminController.createRetailer);
 router.get('/wallet-transactions', AdminController.getWalletTransactions);
+router.get('/platform-fees', AdminController.platformFees);
 
 module.exports = router;

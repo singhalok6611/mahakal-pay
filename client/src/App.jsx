@@ -32,6 +32,7 @@ import AdminDistributors from './pages/admin/AdminDistributors';
 import AdminRetailers from './pages/admin/AdminRetailers';
 import AdminWalletCredit from './pages/admin/AdminWalletCredit';
 import AdminWalletReport from './pages/admin/AdminWalletReport';
+import AdminPlatformEarnings from './pages/admin/AdminPlatformEarnings';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -50,6 +51,7 @@ import RetailerTransactions from './pages/retailer/RetailerTransactions';
 import RetailerWallet from './pages/retailer/RetailerWallet';
 import RetailerSupport from './pages/retailer/RetailerSupport';
 import RetailerPaymentRequest from './pages/retailer/RetailerPaymentRequest';
+import RetailerAddFunds from './pages/retailer/RetailerAddFunds';
 
 // Common
 import CommissionPage from './pages/common/CommissionPage';
@@ -103,6 +105,7 @@ export default function App() {
               <Route path="admin/reports" element={<AdminReports />} />
               <Route path="admin/reports/wallet" element={<AdminWalletReport />} />
               <Route path="admin/payments" element={<AdminPayments />} />
+              <Route path="admin/platform-earnings" element={<AdminPlatformEarnings />} />
               <Route path="admin/support" element={<AdminSupport />} />
               <Route path="admin/settings" element={<AdminSettings />} />
             </Route>
@@ -119,6 +122,7 @@ export default function App() {
               <Route path="distributor/create-retailer" element={<DistributorCreateRetailer />} />
               <Route path="distributor/transactions" element={<DistributorTransactions />} />
               <Route path="distributor/transfer" element={<DistributorTransfer />} />
+              <Route path="distributor/add-funds" element={<RetailerAddFunds />} />
               <Route path="distributor/reports" element={<DistributorReports />} />
               <Route path="distributor/support" element={<DistributorSupport />} />
             </Route>
@@ -134,6 +138,7 @@ export default function App() {
               <Route path="retailer/transactions" element={<RetailerTransactions />} />
               <Route path="retailer/wallet" element={<RetailerWallet />} />
               <Route path="retailer/payment-request" element={<RetailerPaymentRequest />} />
+              <Route path="retailer/add-funds" element={<RetailerAddFunds />} />
               <Route path="retailer/support" element={<RetailerSupport />} />
             </Route>
           </Route>
