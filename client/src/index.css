@@ -411,13 +411,17 @@ footer a:hover {
 .sidebar {
   width: var(--sidebar-width);
   background: var(--primary-gradient);
-  min-height: 100vh;
+  /* Was min-height — that lets the box grow past the viewport with the
+     nav, which means overflow-y has nothing to scroll inside. height:100vh
+     clamps the box to viewport height so the inner nav actually scrolls. */
+  height: 100vh;
   position: fixed;
   left: 0;
   top: 0;
   z-index: 1040;
   transition: transform 0.3s ease;
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-shadow: 6px 0 30px rgba(0,0,0,0.15);
 }
 
