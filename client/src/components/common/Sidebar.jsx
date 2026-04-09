@@ -35,6 +35,8 @@ const menuConfig = {
     },
     {
       icon: FiFileText, label: 'Reports', children: [
+        { path: '/admin/transactions/all', label: 'All Transactions' },
+        { path: '/admin/transactions/failed', label: 'Failed Transactions' },
         { path: '/admin/reports', label: 'Transaction Report' },
         { path: '/admin/reports/wallet', label: 'Wallet Report' },
       ]
@@ -69,7 +71,9 @@ const menuConfig = {
     },
     {
       icon: FiFileText, label: 'Reports', children: [
-        { path: '/distributor/transactions', label: 'Transactions' },
+        { path: '/distributor/transactions/all', label: 'All Transactions' },
+        { path: '/distributor/transactions/failed', label: 'Failed Transactions' },
+        { path: '/distributor/transactions', label: 'Transactions (basic)' },
         { path: '/distributor/reports', label: 'Reports' },
       ]
     },
@@ -96,7 +100,9 @@ const menuConfig = {
     },
     {
       icon: FiFileText, label: 'Reports', children: [
-        { path: '/retailer/transactions', label: 'Transactions' },
+        { path: '/retailer/transactions/all', label: 'All Transactions' },
+        { path: '/retailer/transactions/failed', label: 'Failed Transactions' },
+        { path: '/retailer/transactions', label: 'Transactions (basic)' },
       ]
     },
     {

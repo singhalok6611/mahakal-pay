@@ -10,6 +10,7 @@ router.get('/dashboard', RetailerController.dashboard);
 router.get('/wallet', RetailerController.getWallet);
 router.get('/wallet/transactions', RetailerController.getWalletTransactions);
 router.get('/transactions', RetailerController.getTransactions);
+router.get('/transactions/detailed', RetailerController.getDetailedTransactions);
 router.post('/recharge', RetailerController.recharge);
 router.get('/operators', RetailerController.getOperators);
 router.post('/payment-request', RetailerController.createPaymentRequest);

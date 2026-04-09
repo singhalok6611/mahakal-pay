@@ -5,6 +5,7 @@ const TransactionModel = require('../models/transaction.model');
 const PlatformFeeModel = require('../models/platformFee.model');
 const CommissionSplitModel = require('../models/commissionSplit.model');
 const { isValidPan, normalizePan } = require('../utils/pan');
+const { shapeRows } = require('../utils/txnVisibility');
 const db = require('../config/db');
 
 const AdminController = {
@@ -162,6 +163,25 @@ const AdminController = {
     if (user_id) filters.user_id = parseInt(user_id);
     const result = TransactionModel.listAll(parseInt(page), parseInt(limit), filters);
     res.json(result);
+  },
+
+  // Slice 6: detailed All/Failed Transactions feed for the admin role.
+  // Returns the full commission split breakdown — admin sees everything.
+  getDetailedTransactions(req, res) {
+    const { page = 1, limit = 20, status, service_type } = req.query;
+    const result = TransactionModel.listDetailed({
+      scope: 'admin',
+      scopeUserId: req.user.id,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status,
+      service_type,
+    });
+    res.json({
+      ...result,
+      rows: shapeRows(result.rows, 'admin'),
+      role: 'admin',
+    });
   },
 
   // KYC

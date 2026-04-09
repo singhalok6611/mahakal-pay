@@ -3,6 +3,7 @@ const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
 const { isValidPan, normalizePan } = require('../utils/pan');
+const { shapeRows } = require('../utils/txnVisibility');
 const db = require('../config/db');
 
 const DistributorController = {
@@ -96,6 +97,26 @@ const DistributorController = {
     const { page = 1, limit = 20, status } = req.query;
     const result = TransactionModel.listByParentUser(req.user.id, parseInt(page), parseInt(limit), { status });
     res.json(result);
+  },
+
+  // Slice 6: detailed feed scoped to this distributor's downstream retailers.
+  // Strips admin_share_* per the visibility rule — a distributor must never
+  // see what the admin earns off their downline.
+  getDetailedTransactions(req, res) {
+    const { page = 1, limit = 20, status, service_type } = req.query;
+    const result = TransactionModel.listDetailed({
+      scope: 'distributor',
+      scopeUserId: req.user.id,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status,
+      service_type,
+    });
+    res.json({
+      ...result,
+      rows: shapeRows(result.rows, 'distributor'),
+      role: 'distributor',
+    });
   },
 
   transferBalance(req, res) {

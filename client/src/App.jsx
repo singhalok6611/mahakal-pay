@@ -34,6 +34,7 @@ import AdminWalletCredit from './pages/admin/AdminWalletCredit';
 import AdminWalletReport from './pages/admin/AdminWalletReport';
 import AdminPlatformEarnings from './pages/admin/AdminPlatformEarnings';
 import AdminRetailerApprovals from './pages/admin/AdminRetailerApprovals';
+import AdminTransactionsDetailed from './pages/admin/AdminTransactionsDetailed';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -44,6 +45,7 @@ import DistributorReports from './pages/distributor/DistributorReports';
 import DistributorRecharge from './pages/distributor/DistributorRecharge';
 import DistributorCreateRetailer from './pages/distributor/DistributorCreateRetailer';
 import DistributorSupport from './pages/distributor/DistributorSupport';
+import DistributorTransactionsDetailed from './pages/distributor/DistributorTransactionsDetailed';
 
 // Retailer
 import RetailerDashboard from './pages/retailer/RetailerDashboard';
@@ -53,6 +55,7 @@ import RetailerWallet from './pages/retailer/RetailerWallet';
 import RetailerSupport from './pages/retailer/RetailerSupport';
 import RetailerPaymentRequest from './pages/retailer/RetailerPaymentRequest';
 import RetailerAddFunds from './pages/retailer/RetailerAddFunds';
+import RetailerTransactionsDetailed from './pages/retailer/RetailerTransactionsDetailed';
 
 // Common
 import CommissionPage from './pages/common/CommissionPage';
@@ -103,6 +106,8 @@ export default function App() {
               <Route path="admin/users/retailer-approvals" element={<AdminRetailerApprovals />} />
               <Route path="admin/wallet-credit" element={<AdminWalletCredit />} />
               <Route path="admin/transactions" element={<AdminTransactions />} />
+              <Route path="admin/transactions/all" element={<AdminTransactionsDetailed failedOnly={false} />} />
+              <Route path="admin/transactions/failed" element={<AdminTransactionsDetailed failedOnly={true} />} />
               <Route path="admin/kyc" element={<AdminKYC />} />
               <Route path="admin/reports" element={<AdminReports />} />
               <Route path="admin/reports/wallet" element={<AdminWalletReport />} />
@@ -123,6 +128,8 @@ export default function App() {
               <Route path="distributor/retailers" element={<DistributorRetailers />} />
               <Route path="distributor/create-retailer" element={<DistributorCreateRetailer />} />
               <Route path="distributor/transactions" element={<DistributorTransactions />} />
+              <Route path="distributor/transactions/all" element={<DistributorTransactionsDetailed failedOnly={false} />} />
+              <Route path="distributor/transactions/failed" element={<DistributorTransactionsDetailed failedOnly={true} />} />
               <Route path="distributor/transfer" element={<DistributorTransfer />} />
               <Route path="distributor/add-funds" element={<RetailerAddFunds />} />
               <Route path="distributor/reports" element={<DistributorReports />} />
@@ -138,6 +145,8 @@ export default function App() {
               <Route path="retailer/commission" element={<CommissionPage />} />
               <Route path="retailer/slab-commission" element={<SlabCommissionPage />} />
               <Route path="retailer/transactions" element={<RetailerTransactions />} />
+              <Route path="retailer/transactions/all" element={<RetailerTransactionsDetailed failedOnly={false} />} />
+              <Route path="retailer/transactions/failed" element={<RetailerTransactionsDetailed failedOnly={true} />} />
               <Route path="retailer/wallet" element={<RetailerWallet />} />
               <Route path="retailer/payment-request" element={<RetailerPaymentRequest />} />
               <Route path="retailer/add-funds" element={<RetailerAddFunds />} />

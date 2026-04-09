@@ -2,6 +2,7 @@ const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
 const CommissionSplitModel = require('../models/commissionSplit.model');
 const CyrusService = require('../services/cyrus.service');
+const { shapeRows } = require('../utils/txnVisibility');
 const db = require('../config/db');
 
 const RetailerController = {
@@ -26,6 +27,27 @@ const RetailerController = {
     const { page = 1, limit = 20, status, service_type } = req.query;
     const result = TransactionModel.listByUser(req.user.id, parseInt(page), parseInt(limit), { status, service_type });
     res.json(result);
+  },
+
+  // Slice 6: detailed feed scoped to this retailer's own transactions only.
+  // Strips both admin_share_* AND distributor_share_* / distributor_* per
+  // the visibility rule — a retailer must not see anything above their own
+  // line in the hierarchy.
+  getDetailedTransactions(req, res) {
+    const { page = 1, limit = 20, status, service_type } = req.query;
+    const result = TransactionModel.listDetailed({
+      scope: 'retailer',
+      scopeUserId: req.user.id,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      status,
+      service_type,
+    });
+    res.json({
+      ...result,
+      rows: shapeRows(result.rows, 'retailer'),
+      role: 'retailer',
+    });
   },
 
   async recharge(req, res) {

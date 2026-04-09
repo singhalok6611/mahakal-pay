@@ -109,6 +109,89 @@ const TransactionModel = {
     `).get(...params);
   },
 
+  /**
+   * Slice 6: role-scoped detailed listing for the All / Failed Transactions
+   * pages. Joins commission_splits + retailer + distributor so the response
+   * already carries every column the UI needs (per visibility rule the
+   * controller layer strips fields per role).
+   *
+   * @param {object} opts
+   * @param {'admin'|'distributor'|'retailer'} opts.scope
+   * @param {number} opts.scopeUserId  the requesting user's id (used by
+   *                                   distributor + retailer scopes)
+   * @param {number} [opts.page]
+   * @param {number} [opts.limit]
+   * @param {string} [opts.status]      filter by status (e.g. 'failed')
+   * @param {string} [opts.service_type]
+   */
+  listDetailed({ scope, scopeUserId, page = 1, limit = 20, status, service_type } = {}) {
+    const offset = (page - 1) * limit;
+
+    let where;
+    const params = [];
+    if (scope === 'admin') {
+      where = 'WHERE 1=1';
+    } else if (scope === 'distributor') {
+      where = 'WHERE r.parent_id = ?';
+      params.push(scopeUserId);
+    } else if (scope === 'retailer') {
+      where = 'WHERE t.user_id = ?';
+      params.push(scopeUserId);
+    } else {
+      throw new Error(`listDetailed: unknown scope ${scope}`);
+    }
+
+    if (status) {
+      where += ' AND t.status = ?';
+      params.push(status);
+    }
+    if (service_type) {
+      where += ' AND t.service_type = ?';
+      params.push(service_type);
+    }
+
+    const rows = db.prepare(`
+      SELECT
+        t.id              AS id,
+        t.id              AS transaction_id,
+        t.user_id         AS retailer_user_id,
+        t.service_type,
+        t.operator,
+        t.subscriber_id,
+        t.amount,
+        t.commission      AS retailer_commission,
+        t.status,
+        t.api_txn_id,
+        t.created_at,
+        t.updated_at,
+        r.name            AS retailer_name,
+        r.phone           AS retailer_phone,
+        r.parent_id       AS distributor_user_id,
+        d.name            AS distributor_name,
+        d.phone           AS distributor_phone,
+        cs.distributor_share_amount,
+        cs.distributor_share_pct,
+        cs.admin_share_amount,
+        cs.admin_share_pct
+      FROM transactions t
+      INNER JOIN users r ON r.id = t.user_id
+      LEFT JOIN  users d ON d.id = r.parent_id
+      LEFT JOIN  commission_splits cs ON cs.transaction_id = t.id
+      ${where}
+      ORDER BY t.id DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, limit, offset);
+
+    const total = db.prepare(`
+      SELECT COUNT(*) as count
+      FROM transactions t
+      INNER JOIN users r ON r.id = t.user_id
+      ${where}
+    `).get(...params).count;
+
+    return { rows, total, page, limit };
+  },
+
   getTodayCommission(userFilter = null) {
     let where = "WHERE DATE(created_at) = DATE('now') AND status = 'success'";
     const params = [];

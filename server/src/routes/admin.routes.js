@@ -11,6 +11,7 @@ router.get('/users', AdminController.listUsers);
 router.post('/users/distributor', AdminController.createDistributor);
 router.put('/users/:id', AdminController.updateUser);
 router.get('/transactions', AdminController.getTransactions);
+router.get('/transactions/detailed', AdminController.getDetailedTransactions);
 router.get('/kyc-requests', AdminController.listKYC);
 router.put('/kyc-requests/:id', AdminController.updateKYC);
 router.get('/payment-requests', AdminController.listPaymentRequests);

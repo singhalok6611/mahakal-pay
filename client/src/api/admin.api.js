@@ -5,6 +5,7 @@ export const getUsers = (params) => api.get('/admin/users', { params });
 export const createDistributor = (data) => api.post('/admin/users/distributor', data);
 export const updateUser = (id, data) => api.put(`/admin/users/${id}`, data);
 export const getTransactions = (params) => api.get('/admin/transactions', { params });
+export const getDetailedTransactions = (params) => api.get('/admin/transactions/detailed', { params });
 export const getKYCRequests = (params) => api.get('/admin/kyc-requests', { params });
 export const updateKYC = (id, data) => api.put(`/admin/kyc-requests/${id}`, data);
 export const getPaymentRequests = (params) => api.get('/admin/payment-requests', { params });

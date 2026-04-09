@@ -11,6 +11,7 @@ router.get('/retailers', DistributorController.listRetailers);
 router.post('/retailers', DistributorController.createRetailer);
 router.put('/retailers/:id', DistributorController.updateRetailer);
 router.get('/transactions', DistributorController.getTransactions);
+router.get('/transactions/detailed', DistributorController.getDetailedTransactions);
 router.post('/wallet/transfer', DistributorController.transferBalance);
 router.post('/support-ticket', DistributorController.createSupportTicket);
 
