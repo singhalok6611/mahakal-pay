@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import { getTransactions } from '../../api/admin.api';
 import DataTable from '../../components/common/DataTable';
 
 const statusColors = { success: 'success', processing: 'warning', failed: 'danger', refunded: 'info', pending: 'secondary' };
 
 export default function AdminTransactions() {
+  const [searchParams] = useSearchParams();
+  const userIdFilter = searchParams.get('user_id');
+
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -14,11 +18,12 @@ export default function AdminTransactions() {
   useEffect(() => {
     const params = { page, limit };
     if (filter) params.status = filter;
+    if (userIdFilter) params.user_id = userIdFilter;
     getTransactions(params).then((res) => {
       setTransactions(res.data.transactions || []);
       setTotal(res.data.total || 0);
     }).catch(() => {});
-  }, [page, filter]);
+  }, [page, filter, userIdFilter]);
 
   const columns = [
     { header: '#', render: (row) => row.id },
@@ -38,6 +43,15 @@ export default function AdminTransactions() {
   return (
     <div>
       <h4 className="fw-bold mb-4">All Transactions</h4>
+      {userIdFilter && (
+        <div className="alert alert-info d-flex align-items-center justify-content-between py-2">
+          <span>
+            Filtered by user <strong>#{userIdFilter}</strong>
+            {transactions[0] && <> — {transactions[0].user_name} ({transactions[0].user_phone})</>}
+          </span>
+          <Link to="/admin/transactions" className="btn btn-sm btn-outline-secondary">Clear filter</Link>
+        </div>
+      )}
       <div className="mb-3">
         <div className="btn-group btn-group-sm">
           {['', 'success', 'processing', 'failed', 'refunded'].map((s) => (

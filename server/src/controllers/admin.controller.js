@@ -125,15 +125,24 @@ const AdminController = {
 
   listUsers(req, res) {
     const { role, page = 1, limit = 20 } = req.query;
+
+    // Hydrate the wallet balance onto every row so the admin tables can show
+    // per-user wallet balance without an N+1 fetch from the client.
+    const attachBalance = (user) => {
+      const wallet = WalletModel.getByUserId(user.id);
+      return { ...user, balance: wallet ? wallet.balance : 0 };
+    };
+
     if (role) {
       const result = UserModel.listByRole(role, parseInt(page), parseInt(limit));
+      result.users = result.users.map(attachBalance);
       return res.json(result);
     }
     // List all non-admin users
     const distributors = UserModel.listByRole('distributor', 1, 1000);
     const retailers = UserModel.listByRole('retailer', 1, 1000);
     res.json({
-      users: [...distributors.users, ...retailers.users],
+      users: [...distributors.users.map(attachBalance), ...retailers.users.map(attachBalance)],
       total: distributors.total + retailers.total,
     });
   },
@@ -148,8 +157,10 @@ const AdminController = {
   },
 
   getTransactions(req, res) {
-    const { page = 1, limit = 20, status, service_type } = req.query;
-    const result = TransactionModel.listAll(parseInt(page), parseInt(limit), { status, service_type });
+    const { page = 1, limit = 20, status, service_type, user_id } = req.query;
+    const filters = { status, service_type };
+    if (user_id) filters.user_id = parseInt(user_id);
+    const result = TransactionModel.listAll(parseInt(page), parseInt(limit), filters);
     res.json(result);
   },
 
