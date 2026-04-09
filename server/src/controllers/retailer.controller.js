@@ -3,7 +3,7 @@ const TransactionModel = require('../models/transaction.model');
 const CommissionSplitModel = require('../models/commissionSplit.model');
 const WithdrawalModel = require('../models/withdrawal.model');
 const UserModel = require('../models/user.model');
-const CyrusService = require('../services/cyrus.service');
+const Pay2AllService = require('../services/pay2all.service');
 const notify = require('../services/notify.service');
 const { shapeRows } = require('../utils/txnVisibility');
 const { validateWithdrawalPayload } = require('../utils/withdrawal');
@@ -96,10 +96,13 @@ const RetailerController = {
       return res.status(400).json({ error: err.message });
     }
 
-    // 3) Call Cyrus (or mock)
-    let cyrusResult;
+    // 3) Call upstream provider. Pay2All is the chosen production
+    //    provider per project_mahakal_commission memory; the service
+    //    has its own mock-fallback when PAY2ALL_* env vars aren't set,
+    //    so dev/CI keep working without real credentials.
+    let cyrusResult; // var name kept for downstream compat — it now holds the provider's response shape
     try {
-      cyrusResult = await CyrusService.recharge({
+      cyrusResult = await Pay2AllService.recharge({
         transactionId: txn.id,
         operatorCode: op.code,
         number: subscriber_id,
