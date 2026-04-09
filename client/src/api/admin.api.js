@@ -40,3 +40,8 @@ export const getNotifications = (params) => api.get('/admin/notifications', { pa
 export const getNotificationCount = () => api.get('/admin/notifications/count');
 export const markNotificationRead = (id) => api.put(`/admin/notifications/${id}/read`);
 export const markAllNotificationsRead = () => api.put('/admin/notifications/read-all');
+
+// Pay2All float health, deposit info, daily reconciliation
+export const getFloatStatus     = () => api.get('/admin/float-status');
+export const getPay2allDeposit  = () => api.get('/admin/pay2all-deposit');
+export const getReconciliation  = (days = 7) => api.get('/admin/reconciliation', { params: { days } });

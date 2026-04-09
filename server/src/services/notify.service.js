@@ -68,6 +68,35 @@ const notify = {
     });
   },
 
+  // Float-coverage drop — Pay2All master can no longer back the
+  // outstanding internal wallets. Fired by the recharge path.
+  // Debounced via the settings table so we don't spam the admin
+  // (one notification per critical event per 6 hours).
+  lowFloat({ pay2allBalance, internalTotal, coveragePct, deltaInr }) {
+    safeFire(() => {
+      const db = require('../config/db');
+      const last = db.prepare("SELECT value FROM settings WHERE key = 'last_low_float_alert_at'").get();
+      const now = Date.now();
+      if (last && last.value && (now - parseInt(last.value, 10)) < 6 * 60 * 60 * 1000) {
+        return; // debounced
+      }
+      db.prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_low_float_alert_at', ?, CURRENT_TIMESTAMP)")
+        .run(String(now));
+
+      NotificationModel.create({
+        user_id: ADMIN_USER_ID,
+        type: 'low_float',
+        title: `LOW FLOAT — Pay2All ₹${pay2allBalance}`,
+        message:
+          `Pay2All master is ₹${pay2allBalance.toFixed(2)} but internal wallets total ₹${internalTotal.toFixed(2)} ` +
+          `(coverage ${coveragePct.toFixed(1)}%, delta ₹${deltaInr.toFixed(2)}). ` +
+          'Top up the Pay2All master immediately or recharges will start failing.',
+        reference_type: 'float_health',
+        reference_id: null,
+      });
+    });
+  },
+
   // Admin suspended a user — log it as a notification too so the activity
   // shows up in the bell history.
   suspension({ userName, userId, role, sweptAmount }) {

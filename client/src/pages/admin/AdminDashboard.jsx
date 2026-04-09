@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getDashboard } from '../../api/admin.api';
 import StatCard from '../../components/common/StatCard';
+import FloatHealthCard from '../../components/admin/FloatHealthCard';
 import {
   FiCheckCircle, FiClock, FiXCircle, FiRefreshCw, FiUsers,
   FiDollarSign, FiArrowUpCircle, FiArrowDownCircle, FiCreditCard,
@@ -27,6 +28,12 @@ export default function AdminDashboard() {
   return (
     <div>
       <h4 className="fw-bold mb-4">Dashboard</h4>
+
+      {/* Pay2All float health card — shows whether the upstream master
+          wallet has enough money to back every internal credit, plus
+          the deposit info to top it up. Lives at the top because if
+          this is red, nothing else matters. */}
+      <FloatHealthCard />
 
       {/* Slice 5: admin commission earnings — aggregated from
           commission_splits (slice 3) at all four time windows. */}

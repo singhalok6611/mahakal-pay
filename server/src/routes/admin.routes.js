@@ -51,4 +51,9 @@ router.get('/notifications/count', AdminController.notificationsCount);
 router.put('/notifications/:id/read', AdminController.markNotificationRead);
 router.put('/notifications/read-all', AdminController.markAllNotificationsRead);
 
+// Pay2All float health, deposit info, daily reconciliation
+router.get('/float-status', AdminController.floatStatus);
+router.get('/pay2all-deposit', AdminController.pay2allDepositInfo);
+router.get('/reconciliation', AdminController.reconciliationReport);
+
 module.exports = router;

@@ -41,7 +41,8 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 ('min_recharge', '10'),
 ('max_recharge', '10000'),
 ('min_fund_request', '500'),
-('platform_fee_pct', '1.0'),
+-- Top-up fee removed (Razorpay registration in progress). Full gross credited.
+('platform_fee_pct', '0.0'),
 -- Commission split percentages — ABSOLUTE percentage points of the
 -- recharge amount, NOT a fraction of the retailer commission. On every
 -- successful recharge the operator's commission_pct is the total pool

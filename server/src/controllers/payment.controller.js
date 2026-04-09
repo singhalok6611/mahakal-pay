@@ -1,7 +1,6 @@
 const db = require('../config/db');
 const RazorpayService = require('../services/razorpay.service');
 const WalletModel = require('../models/wallet.model');
-const PlatformFeeModel = require('../models/platformFee.model');
 
 const MIN_AMOUNT = parseFloat(process.env.MIN_TOPUP_AMOUNT || '100');
 const MAX_AMOUNT = parseFloat(process.env.MAX_TOPUP_AMOUNT || '100000');
@@ -18,7 +17,8 @@ const PaymentController = {
       currency: 'INR',
       min: MIN_AMOUNT,
       max: MAX_AMOUNT,
-      platformFeePct: PlatformFeeModel.getFeePct(),
+      // Top-up fee removed — full gross is credited to the user
+      platformFeePct: 0,
     });
   },
 
@@ -104,23 +104,16 @@ const PaymentController = {
         WHERE id = ?
       `).run(paymentId, order.id);
 
-      // Apply 1% platform fee FIRST: deduct from gross, credit admin
-      const { feeAmount, feePct } = PlatformFeeModel.apply({
-        userId: order.user_id,
-        sourceType: 'wallet_topup',
-        sourceId: order.id,
-        baseAmount: order.amount,
-      });
-
-      const netCredit = Math.round((order.amount - feeAmount) * 100) / 100;
+      // No platform fee on top-ups — credit the FULL gross to the user.
+      // (The legacy 1% fee was removed once Razorpay registration began.)
       WalletModel.credit(
         order.user_id,
-        netCredit,
+        order.amount,
         'wallet_topup',
         order.id,
-        `Razorpay top-up ₹${order.amount} (₹${feeAmount} platform fee @ ${feePct}%)`
+        `Razorpay top-up ₹${order.amount}`
       );
-      return { netCredit, feeAmount, feePct };
+      return { netCredit: order.amount };
     });
 
     try {
@@ -130,7 +123,7 @@ const PaymentController = {
         message: 'Payment verified and wallet credited',
         status: 'paid',
         credited: result.netCredit,
-        platformFee: result.feeAmount,
+        platformFee: 0,
         balance: wallet ? wallet.balance : 0,
       });
     } catch (err) {
@@ -165,19 +158,13 @@ const PaymentController = {
               db.prepare(`UPDATE payment_orders SET status='paid', gateway_payment_id=?, method=?, raw_payload=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`)
                 .run(payment.id, payment.method || null, JSON.stringify(payment), order.id);
 
-              const { feeAmount, feePct } = PlatformFeeModel.apply({
-                userId: order.user_id,
-                sourceType: 'wallet_topup',
-                sourceId: order.id,
-                baseAmount: order.amount,
-              });
-              const netCredit = Math.round((order.amount - feeAmount) * 100) / 100;
+              // Full gross to user — no platform fee on top-ups.
               WalletModel.credit(
                 order.user_id,
-                netCredit,
+                order.amount,
                 'wallet_topup',
                 order.id,
-                `Razorpay webhook ₹${order.amount} (fee ₹${feeAmount} @ ${feePct}%)`
+                `Razorpay top-up ₹${order.amount} (webhook)`
               );
             });
             txn();

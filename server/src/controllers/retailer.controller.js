@@ -112,6 +112,28 @@ const RetailerController = {
       cyrusResult = { status: 'failed', message: err.message, apiTxnId: null };
     }
 
+    // If Pay2All explicitly returned "Insufficient balance" we know the
+    // float ran out — fire a low-float notification to admin so the
+    // problem is visible (debounced inside notify.service.lowFloat).
+    if (cyrusResult.status === 'failed' && /insufficient/i.test(cyrusResult.message || '')) {
+      try {
+        const balResult = await Pay2AllService.checkBalance();
+        const internalTotal = Number(
+          db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM wallets').get().s || 0
+        );
+        const pay2allBalance = Number(balResult.balance ?? 0);
+        const coveragePct = internalTotal > 0 ? (pay2allBalance / internalTotal) * 100 : 100;
+        notify.lowFloat({
+          pay2allBalance,
+          internalTotal,
+          coveragePct,
+          deltaInr: pay2allBalance - internalTotal,
+        });
+      } catch (e) {
+        console.error('[recharge] low-float notify failed:', e.message);
+      }
+    }
+
     // 4) Update transaction status from API result
     TransactionModel.updateStatus(txn.id, cyrusResult.status, cyrusResult.apiTxnId);
 

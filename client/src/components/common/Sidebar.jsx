@@ -38,6 +38,7 @@ const menuConfig = {
       icon: FiFileText, label: 'Reports', children: [
         { path: '/admin/transactions/all', label: 'All Transactions' },
         { path: '/admin/transactions/failed', label: 'Failed Transactions' },
+        { path: '/admin/reconciliation', label: 'Daily Reconciliation' },
         { path: '/admin/reports', label: 'Transaction Report' },
         { path: '/admin/reports/wallet', label: 'Wallet Report' },
       ]

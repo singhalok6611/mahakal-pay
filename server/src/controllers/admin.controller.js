@@ -7,6 +7,7 @@ const CommissionSplitModel = require('../models/commissionSplit.model');
 const WithdrawalModel = require('../models/withdrawal.model');
 const RefreshTokenModel = require('../models/refreshToken.model');
 const NotificationModel = require('../models/notification.model');
+const Pay2AllService = require('../services/pay2all.service');
 const notify = require('../services/notify.service');
 const { isValidPan, normalizePan } = require('../utils/pan');
 const { shapeRows } = require('../utils/txnVisibility');
@@ -592,6 +593,117 @@ const AdminController = {
 
   notificationsCount(req, res) {
     res.json({ unread: NotificationModel.countUnread(req.user.id) });
+  },
+
+  // ---------- Pay2All float health & reconciliation ----------
+  //
+  // The most operationally critical admin view in the platform: shows
+  // whether the Pay2All master wallet has enough money to back every
+  // outstanding internal wallet credit. Without this, retailers can
+  // hold ledger credit that the platform can't actually deliver on.
+
+  async floatStatus(req, res) {
+    const balanceResult = await Pay2AllService.checkBalance();
+    const pay2allBalance = Number(balanceResult.balance ?? 0);
+
+    const internalTotal = Number(
+      db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM wallets').get().s || 0
+    );
+    const breakdown = db.prepare(`
+      SELECT u.role AS role, COALESCE(SUM(w.balance), 0) AS sum
+      FROM wallets w JOIN users u ON u.id = w.user_id
+      GROUP BY u.role
+    `).all();
+
+    const delta = pay2allBalance - internalTotal;
+    const coveragePct = internalTotal > 0
+      ? (pay2allBalance / internalTotal) * 100
+      : (pay2allBalance > 0 ? 9999 : 100);
+
+    let health = 'healthy';
+    let message = 'Pay2All master fully covers all internal wallets.';
+    if (coveragePct < 100) {
+      health = 'critical';
+      message = `Pay2All master is ₹${Math.abs(delta).toFixed(2)} below internal wallet credits. Top up immediately.`;
+    } else if (coveragePct < 120) {
+      health = 'warning';
+      message = `Pay2All master only covers ${coveragePct.toFixed(1)}% of internal wallets. Top up soon.`;
+    }
+
+    res.json({
+      pay2all_balance: pay2allBalance,
+      pay2all_live: Pay2AllService.isLive(),
+      internal_total: Number(internalTotal.toFixed(2)),
+      internal_breakdown: breakdown.reduce((acc, r) => { acc[r.role] = Number(r.sum); return acc; }, {}),
+      coverage_pct: Number(coveragePct.toFixed(2)),
+      delta: Number(delta.toFixed(2)),
+      health,
+      message,
+      checked_at: new Date().toISOString(),
+    });
+  },
+
+  async pay2allDepositInfo(req, res) {
+    const info = await Pay2AllService.getDepositInfo();
+    res.json(info);
+  },
+
+  // Last N days reconciliation: txns attempted / successful / failed,
+  // gross recharge volume, total commission distributed across the
+  // three layers, plus the net change to all internal wallets.
+  reconciliationReport(req, res) {
+    const days = Math.min(parseInt(req.query.days || '7', 10), 90);
+    const rows = [];
+    for (let i = 0; i < days; i++) {
+      const dateExpr = `date('now', '-${i} days')`;
+      const txn = db.prepare(`
+        SELECT
+          COUNT(*) AS attempted,
+          COALESCE(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END), 0) AS success_count,
+          COALESCE(SUM(CASE WHEN status='failed'  THEN 1 ELSE 0 END), 0) AS failed_count,
+          COALESCE(SUM(CASE WHEN status='refunded' THEN 1 ELSE 0 END), 0) AS refunded_count,
+          COALESCE(SUM(CASE WHEN status='success' THEN amount ELSE 0 END), 0) AS gross_amount,
+          COALESCE(SUM(CASE WHEN status='success' THEN commission ELSE 0 END), 0) AS retailer_commission_total
+        FROM transactions
+        WHERE date(created_at) = ${dateExpr}
+      `).get();
+
+      const split = db.prepare(`
+        SELECT
+          COALESCE(SUM(admin_share_amount), 0) AS admin_total,
+          COALESCE(SUM(distributor_share_amount), 0) AS dist_total,
+          COALESCE(SUM(retailer_commission_amount), 0) AS retailer_total
+        FROM commission_splits
+        WHERE date(created_at) = ${dateExpr}
+      `).get();
+
+      const credits = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) AS s FROM wallet_transactions
+        WHERE type='credit' AND date(created_at) = ${dateExpr}
+      `).get().s || 0;
+      const debits = db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) AS s FROM wallet_transactions
+        WHERE type='debit' AND date(created_at) = ${dateExpr}
+      `).get().s || 0;
+
+      const dateRow = db.prepare(`SELECT ${dateExpr} AS d`).get().d;
+
+      rows.push({
+        date: dateRow,
+        recharges_attempted: txn.attempted,
+        recharges_success: txn.success_count,
+        recharges_failed: txn.failed_count,
+        recharges_refunded: txn.refunded_count,
+        gross_recharge_amount: Number(txn.gross_amount),
+        retailer_commission: Number(split.retailer_total),
+        distributor_commission: Number(split.dist_total),
+        admin_commission: Number(split.admin_total),
+        wallet_credits: Number(credits),
+        wallet_debits: Number(debits),
+        net_change: Number((credits - debits).toFixed(2)),
+      });
+    }
+    res.json({ days: rows });
   },
 
   transferToUser(req, res) {

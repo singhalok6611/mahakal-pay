@@ -304,6 +304,43 @@ const Pay2AllService = {
       return { balance: null, error: err.message };
     }
   },
+
+  /**
+   * Master deposit info — Pay2All assigns every API partner a virtual
+   * bank account + UPI ID; any deposit to it auto-credits the master
+   * wallet. Returned by /api/user under data.bank_account.
+   *
+   * Used by the admin dashboard to show "send money here to top up
+   * Pay2All" without making the admin log into erp.pay2all.in.
+   */
+  async getDepositInfo() {
+    if (!isLive()) {
+      return {
+        configured: false,
+        message: 'MOCK mode — set PAY2ALL_EMAIL/PASSWORD/ACCOUNT_MOBILE to fetch the virtual deposit account',
+      };
+    }
+    try {
+      const token = await fetchToken();
+      const { body } = await getJson(`${BASE}/api/user`, {
+        Accept: 'application/json',
+        Authorization: `Bearer ${token}`,
+      });
+      const data = body?.data || {};
+      const ba = data.bank_account?.data || {};
+      return {
+        configured: true,
+        balance: data.balance?.user_balance ?? null,
+        account_holder: data.name || ba.beneficiary_name || null,
+        bank_account_number: ba.virtual_account_number || null,
+        bank_ifsc: ba.virtual_ifsc || null,
+        upi_id: ba.virtual_upi || null,
+        mobile: data.mobile || null,
+      };
+    } catch (err) {
+      return { configured: false, error: err.message };
+    }
+  },
 };
 
 module.exports = Pay2AllService;

@@ -1102,6 +1102,9 @@ footer a:hover {
   background: #f5f5f5;
 }
 
+/* Spinning refresh icon helper used by FloatHealthCard */
+.spin { animation: spin-slow 1s linear infinite; }
+
 /* ============================================
    LANDING PAGE ANIMATIONS
    ============================================ */

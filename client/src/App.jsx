@@ -40,6 +40,7 @@ import AdminTransactionsDetailed from './pages/admin/AdminTransactionsDetailed';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals';
 import AdminNotifications from './pages/admin/AdminNotifications';
 import AdminCredentials from './pages/admin/AdminCredentials';
+import AdminReconciliation from './pages/admin/AdminReconciliation';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -126,6 +127,7 @@ export default function App() {
               <Route path="admin/platform-earnings" element={<AdminPlatformEarnings />} />
               <Route path="admin/withdrawals" element={<AdminWithdrawals />} />
               <Route path="admin/notifications" element={<AdminNotifications />} />
+              <Route path="admin/reconciliation" element={<AdminReconciliation />} />
               <Route path="admin/support" element={<AdminSupport />} />
               <Route path="admin/settings" element={<AdminSettings />} />
             </Route>
