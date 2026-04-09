@@ -2,8 +2,10 @@ const bcrypt = require('bcryptjs');
 const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
+const WithdrawalModel = require('../models/withdrawal.model');
 const { isValidPan, normalizePan } = require('../utils/pan');
 const { shapeRows } = require('../utils/txnVisibility');
+const { validateWithdrawalPayload } = require('../utils/withdrawal');
 const db = require('../config/db');
 
 const DistributorController = {
@@ -140,6 +142,26 @@ const DistributorController = {
       res.status(400).json({ error: err.message });
     }
   },
+  // ---------- Slice 4: withdrawals (own) ----------
+
+  createWithdrawal(req, res) {
+    const { error, payload } = validateWithdrawalPayload(req.body);
+    if (error) return res.status(400).json({ error });
+
+    const wallet = WalletModel.getByUserId(req.user.id);
+    if (!wallet || wallet.balance < payload.amount) {
+      return res.status(400).json({ error: 'Insufficient wallet balance' });
+    }
+    const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
+    res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });
+  },
+
+  listWithdrawals(req, res) {
+    const { page = 1, limit = 20 } = req.query;
+    const result = WithdrawalModel.listByUser(req.user.id, { page: parseInt(page), limit: parseInt(limit) });
+    res.json(result);
+  },
+
   createSupportTicket(req, res) {
     const { subject, message } = req.body;
 

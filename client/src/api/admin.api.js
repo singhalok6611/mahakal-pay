@@ -21,3 +21,11 @@ export const getWalletTransactions = (params) => api.get('/admin/wallet-transact
 export const getPendingRetailers = (params) => api.get('/admin/retailer-approvals', { params });
 export const approveRetailer = (id) => api.put(`/admin/retailer-approvals/${id}/approve`);
 export const rejectRetailer = (id) => api.put(`/admin/retailer-approvals/${id}/reject`);
+
+// Slice 4: withdrawals + suspension + admin transfer
+export const getWithdrawals = (params) => api.get('/admin/withdrawals', { params });
+export const approveWithdrawal = (id, remarks) => api.put(`/admin/withdrawals/${id}/approve`, { remarks });
+export const rejectWithdrawal = (id, remarks) => api.put(`/admin/withdrawals/${id}/reject`, { remarks });
+export const suspendUser = (id) => api.put(`/admin/users/${id}/suspend`);
+export const reactivateUser = (id) => api.put(`/admin/users/${id}/reactivate`);
+export const transferToUser = (data) => api.post('/admin/wallet/transfer', data);

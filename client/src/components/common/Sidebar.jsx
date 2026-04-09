@@ -44,6 +44,7 @@ const menuConfig = {
     {
       icon: FiCreditCard, label: 'Payment', children: [
         { path: '/admin/payments', label: 'Payment Requests' },
+        { path: '/admin/withdrawals', label: 'Withdrawal Requests' },
         { path: '/admin/platform-earnings', label: 'Platform Earnings' },
       ]
     },
@@ -81,6 +82,7 @@ const menuConfig = {
       icon: FiCreditCard, label: 'Payment', children: [
         { path: '/distributor/transfer', label: 'Transfer Balance' },
         { path: '/distributor/add-funds', label: 'Add Funds (Online)' },
+        { path: '/distributor/withdrawals', label: 'Withdraw to Bank' },
       ]
     },
     {
@@ -110,6 +112,8 @@ const menuConfig = {
         { path: '/retailer/wallet', label: 'Wallet' },
         { path: '/retailer/add-funds', label: 'Add Funds (Online)' },
         { path: '/retailer/payment-request', label: 'Add Payment Request' },
+        { path: '/retailer/withdrawals', label: 'Withdraw to Bank' },
+        { path: '/retailer/transfer', label: 'Transfer to Distributor' },
       ]
     },
     {

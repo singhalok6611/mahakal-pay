@@ -30,4 +30,16 @@ router.get('/retailer-approvals', AdminController.listPendingRetailers);
 router.put('/retailer-approvals/:id/approve', AdminController.approveRetailer);
 router.put('/retailer-approvals/:id/reject', AdminController.rejectRetailer);
 
+// Slice 4: withdrawals (admin queue)
+router.get('/withdrawals', AdminController.listWithdrawals);
+router.put('/withdrawals/:id/approve', AdminController.approveWithdrawal);
+router.put('/withdrawals/:id/reject', AdminController.rejectWithdrawal);
+
+// Slice 4: suspension with wallet sweep
+router.put('/users/:id/suspend', AdminController.suspendUser);
+router.put('/users/:id/reactivate', AdminController.reactivateUser);
+
+// Slice 4: admin → any user wallet transfer
+router.post('/wallet/transfer', AdminController.transferToUser);
+
 module.exports = router;

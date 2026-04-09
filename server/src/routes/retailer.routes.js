@@ -14,6 +14,10 @@ router.get('/transactions/detailed', RetailerController.getDetailedTransactions)
 router.post('/recharge', RetailerController.recharge);
 router.get('/operators', RetailerController.getOperators);
 router.post('/payment-request', RetailerController.createPaymentRequest);
+// Slice 4: own withdrawals + transfer up to parent distributor
+router.post('/withdrawals', RetailerController.createWithdrawal);
+router.get('/withdrawals', RetailerController.listWithdrawals);
+router.post('/wallet/transfer-to-parent', RetailerController.transferToParent);
 router.post('/support-ticket', RetailerController.createSupportTicket);
 
 module.exports = router;

@@ -4,9 +4,13 @@ const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
 const PlatformFeeModel = require('../models/platformFee.model');
 const CommissionSplitModel = require('../models/commissionSplit.model');
+const WithdrawalModel = require('../models/withdrawal.model');
+const RefreshTokenModel = require('../models/refreshToken.model');
 const { isValidPan, normalizePan } = require('../utils/pan');
 const { shapeRows } = require('../utils/txnVisibility');
 const db = require('../config/db');
+
+const ADMIN_USER_ID = parseInt(process.env.PLATFORM_ADMIN_ID || '1', 10);
 
 const AdminController = {
   dashboard(req, res) {
@@ -374,6 +378,136 @@ const AdminController = {
     }
     const updated = UserModel.setApprovalStatus(id, 'rejected');
     res.json({ message: 'Retailer rejected', user: updated });
+  },
+
+  // ---------- Slice 4: Withdrawals ----------
+
+  listWithdrawals(req, res) {
+    const { status, page = 1, limit = 20 } = req.query;
+    const result = WithdrawalModel.listAll({ status, page: parseInt(page), limit: parseInt(limit) });
+    res.json(result);
+  },
+
+  approveWithdrawal(req, res) {
+    const id = parseInt(req.params.id);
+    const { remarks } = req.body || {};
+    try {
+      const w = WithdrawalModel.approve(id, req.user.id, remarks);
+      res.json({ message: 'Withdrawal approved and wallet debited', withdrawal: w });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
+  rejectWithdrawal(req, res) {
+    const id = parseInt(req.params.id);
+    const { remarks } = req.body || {};
+    try {
+      const w = WithdrawalModel.reject(id, req.user.id, remarks);
+      res.json({ message: 'Withdrawal rejected', withdrawal: w });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
+  // ---------- Slice 4: Suspension with wallet sweep ----------
+  //
+  // Per project_mahakal_onboarding: when admin suspends a distributor or
+  // retailer the account is fully disabled AND any wallet balance is
+  // SWEPT to the admin wallet, with a clean audit trail on both sides.
+  // Refresh tokens are revoked so an in-flight session cannot keep going.
+
+  suspendUser(req, res) {
+    const id = parseInt(req.params.id);
+    if (id === ADMIN_USER_ID) {
+      return res.status(400).json({ error: 'Cannot suspend the admin account' });
+    }
+    const user = UserModel.findById(id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role === 'admin') {
+      return res.status(400).json({ error: 'Cannot suspend an admin user' });
+    }
+    if (user.status === 'blocked') {
+      return res.status(400).json({ error: 'User is already blocked' });
+    }
+
+    const wallet = WalletModel.getByUserId(id);
+    const sweepAmount = wallet ? Math.round(wallet.balance * 100) / 100 : 0;
+
+    const txn = db.transaction(() => {
+      // 1. Sweep wallet (only if there's anything to sweep).
+      if (sweepAmount > 0) {
+        WalletModel.debit(
+          id,
+          sweepAmount,
+          'suspension_sweep',
+          id,
+          `Wallet swept on suspension of ${user.role} ${user.name}`
+        );
+        WalletModel.credit(
+          ADMIN_USER_ID,
+          sweepAmount,
+          'suspension_sweep',
+          id,
+          `Sweep from suspended ${user.role} ${user.name} (#${id})`
+        );
+      }
+      // 2. Block the account.
+      UserModel.updateStatus(id, 'blocked');
+      // 3. Revoke any active sessions.
+      try { RefreshTokenModel.revokeAllForUser(id); } catch {}
+    });
+    txn();
+
+    res.json({
+      message: `User suspended${sweepAmount > 0 ? ` and ₹${sweepAmount.toFixed(2)} swept to admin wallet` : ''}`,
+      user: UserModel.findById(id),
+      sweptAmount: sweepAmount,
+    });
+  },
+
+  reactivateUser(req, res) {
+    // Reactivation does NOT restore swept funds — that's by design. The
+    // swept funds are now part of the admin wallet's audit trail and
+    // would have to be transferred back manually if the admin wants to.
+    const id = parseInt(req.params.id);
+    const user = UserModel.findById(id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.status === 'active') {
+      return res.status(400).json({ error: 'User is already active' });
+    }
+    UserModel.updateStatus(id, 'active');
+    res.json({ message: 'User reactivated', user: UserModel.findById(id) });
+  },
+
+  // ---------- Slice 4: Generic admin → any user wallet transfer ----------
+
+  transferToUser(req, res) {
+    const { to_user_id, amount, description } = req.body;
+    if (!to_user_id || !amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({ error: 'to_user_id and positive amount are required' });
+    }
+    const target = UserModel.findById(parseInt(to_user_id));
+    if (!target) return res.status(404).json({ error: 'Target user not found' });
+    if (target.id === req.user.id) {
+      return res.status(400).json({ error: 'Cannot transfer to yourself' });
+    }
+    if (target.status !== 'active') {
+      return res.status(400).json({ error: 'Target user is not active' });
+    }
+
+    const amt = parseFloat(amount);
+    try {
+      const txn = db.transaction(() => {
+        WalletModel.debit(req.user.id, amt, 'wallet_transfer', target.id, description || `Transfer to ${target.name}`);
+        WalletModel.credit(target.id, amt, 'wallet_transfer', req.user.id, description || `Transfer from admin`);
+      });
+      txn();
+      const adminWallet = WalletModel.getByUserId(req.user.id);
+      res.json({ message: 'Transfer successful', balance: adminWallet ? adminWallet.balance : 0 });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   },
 
   getWalletTransactions(req, res) {

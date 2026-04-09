@@ -1,8 +1,11 @@
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
 const CommissionSplitModel = require('../models/commissionSplit.model');
+const WithdrawalModel = require('../models/withdrawal.model');
+const UserModel = require('../models/user.model');
 const CyrusService = require('../services/cyrus.service');
 const { shapeRows } = require('../utils/txnVisibility');
+const { validateWithdrawalPayload } = require('../utils/withdrawal');
 const db = require('../config/db');
 
 const RetailerController = {
@@ -192,6 +195,60 @@ const RetailerController = {
     const { page = 1, limit = 20 } = req.query;
     const result = WalletModel.getTransactions(req.user.id, parseInt(page), parseInt(limit));
     res.json(result);
+  },
+
+  // ---------- Slice 4: Withdrawals (own) ----------
+
+  createWithdrawal(req, res) {
+    const { error, payload } = validateWithdrawalPayload(req.body);
+    if (error) return res.status(400).json({ error });
+
+    const wallet = WalletModel.getByUserId(req.user.id);
+    if (!wallet || wallet.balance < payload.amount) {
+      return res.status(400).json({ error: 'Insufficient wallet balance' });
+    }
+    const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
+    res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });
+  },
+
+  listWithdrawals(req, res) {
+    const { page = 1, limit = 20 } = req.query;
+    const result = WithdrawalModel.listByUser(req.user.id, { page: parseInt(page), limit: parseInt(limit) });
+    res.json(result);
+  },
+
+  // ---------- Slice 4: Wallet → wallet (retailer transfers up to their distributor) ----------
+  //
+  // The only peer transfer a retailer can make is back up to their parent
+  // distributor — they cannot fund another retailer directly. This keeps
+  // the money flow tree-shaped (admin -> dist -> retailer) with one
+  // sanctioned reverse path.
+
+  transferToParent(req, res) {
+    const { amount, description } = req.body;
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0) {
+      return res.status(400).json({ error: 'A positive amount is required' });
+    }
+    const me = UserModel.findById(req.user.id);
+    if (!me || !me.parent_id) {
+      return res.status(400).json({ error: 'You are not linked to a distributor' });
+    }
+    const parent = UserModel.findById(me.parent_id);
+    if (!parent || parent.role !== 'distributor' || parent.status !== 'active') {
+      return res.status(400).json({ error: 'Your distributor is not currently active' });
+    }
+    try {
+      const txn = db.transaction(() => {
+        WalletModel.debit(req.user.id, amt, 'wallet_transfer', parent.id, description || `Transfer to distributor ${parent.name}`);
+        WalletModel.credit(parent.id, amt, 'wallet_transfer', req.user.id, description || `Transfer from retailer ${me.name}`);
+      });
+      txn();
+      const wallet = WalletModel.getByUserId(req.user.id);
+      res.json({ message: 'Transfer successful', balance: wallet ? wallet.balance : 0 });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
   },
 };
 

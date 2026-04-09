@@ -7,3 +7,7 @@ export const updateRetailer = (id, data) => api.put(`/distributor/retailers/${id
 export const getTransactions = (params) => api.get('/distributor/transactions', { params });
 export const getDetailedTransactions = (params) => api.get('/distributor/transactions/detailed', { params });
 export const transferBalance = (data) => api.post('/distributor/wallet/transfer', data);
+
+// Slice 4: own withdrawals
+export const createWithdrawal = (data) => api.post('/distributor/withdrawals', data);
+export const getMyWithdrawals = (params) => api.get('/distributor/withdrawals', { params });

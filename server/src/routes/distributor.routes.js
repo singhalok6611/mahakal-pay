@@ -13,6 +13,9 @@ router.put('/retailers/:id', DistributorController.updateRetailer);
 router.get('/transactions', DistributorController.getTransactions);
 router.get('/transactions/detailed', DistributorController.getDetailedTransactions);
 router.post('/wallet/transfer', DistributorController.transferBalance);
+// Slice 4: own withdrawals
+router.post('/withdrawals', DistributorController.createWithdrawal);
+router.get('/withdrawals', DistributorController.listWithdrawals);
 router.post('/support-ticket', DistributorController.createSupportTicket);
 
 module.exports = router;

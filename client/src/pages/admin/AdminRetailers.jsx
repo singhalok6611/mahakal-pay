@@ -1,26 +1,51 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FiList } from 'react-icons/fi';
-import { getUsers } from '../../api/admin.api';
+import { FiList, FiSlash, FiCheckCircle } from 'react-icons/fi';
+import toast from 'react-hot-toast';
+import { getUsers, suspendUser, reactivateUser } from '../../api/admin.api';
 
 const fmtMoney = (n) => `₹ ${Number(n || 0).toFixed(2)}`;
 
 export default function AdminRetailers() {
   const [users, setUsers] = useState([]);
   const [distributors, setDistributors] = useState({});
+  const [acting, setActing] = useState(null);
+
+  const loadRetailers = () => getUsers({ role: 'retailer' }).then(res => {
+    setUsers(res.data.users || []);
+  }).catch(() => {});
 
   useEffect(() => {
-    // Get distributors for parent mapping
     getUsers({ role: 'distributor' }).then(res => {
       const map = {};
       (res.data.users || []).forEach(d => { map[d.id] = d; });
       setDistributors(map);
     }).catch(() => {});
-
-    getUsers({ role: 'retailer' }).then(res => {
-      setUsers(res.data.users || []);
-    }).catch(() => {});
+    loadRetailers();
   }, []);
+
+  const handleSuspend = async (u) => {
+    if (!window.confirm(`Suspend ${u.name}? Their wallet balance (₹${Number(u.balance || 0).toFixed(2)}) will be swept to the admin wallet.`)) return;
+    setActing(u.id);
+    try {
+      const res = await suspendUser(u.id);
+      toast.success(res.data.message || 'Suspended');
+      loadRetailers();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Suspension failed');
+    } finally { setActing(null); }
+  };
+
+  const handleReactivate = async (u) => {
+    setActing(u.id);
+    try {
+      await reactivateUser(u.id);
+      toast.success('Reactivated');
+      loadRetailers();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Reactivation failed');
+    } finally { setActing(null); }
+  };
 
   const totalBalance = users.reduce((s, u) => s + Number(u.balance || 0), 0);
 
@@ -71,15 +96,34 @@ export default function AdminRetailers() {
                       <td className="text-end fw-semibold text-success">{fmtMoney(u.balance)}</td>
                       <td>{new Date(u.created_at).toLocaleDateString()}</td>
                       <td><span className={`badge bg-${u.status === 'active' ? 'success' : 'danger'}`}>{u.status}</span></td>
-                      <td>
+                      <td className="text-nowrap">
                         <Link
                           to={`/admin/transactions?user_id=${u.id}`}
-                          className="btn btn-sm btn-outline-primary"
+                          className="btn btn-sm btn-outline-primary me-2"
                           title="View this retailer's transactions"
                         >
                           <FiList className="me-1" />
                           Txns
                         </Link>
+                        {u.status === 'blocked' ? (
+                          <button
+                            className="btn btn-sm btn-outline-success"
+                            disabled={acting === u.id}
+                            onClick={() => handleReactivate(u)}
+                            title="Reactivate this account"
+                          >
+                            <FiCheckCircle className="me-1" />Reactivate
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-sm btn-outline-danger"
+                            disabled={acting === u.id}
+                            onClick={() => handleSuspend(u)}
+                            title="Block this account and sweep wallet to admin"
+                          >
+                            <FiSlash className="me-1" />Suspend
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

@@ -35,6 +35,7 @@ import AdminWalletReport from './pages/admin/AdminWalletReport';
 import AdminPlatformEarnings from './pages/admin/AdminPlatformEarnings';
 import AdminRetailerApprovals from './pages/admin/AdminRetailerApprovals';
 import AdminTransactionsDetailed from './pages/admin/AdminTransactionsDetailed';
+import AdminWithdrawals from './pages/admin/AdminWithdrawals';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -46,6 +47,7 @@ import DistributorRecharge from './pages/distributor/DistributorRecharge';
 import DistributorCreateRetailer from './pages/distributor/DistributorCreateRetailer';
 import DistributorSupport from './pages/distributor/DistributorSupport';
 import DistributorTransactionsDetailed from './pages/distributor/DistributorTransactionsDetailed';
+import DistributorWithdrawal from './pages/distributor/DistributorWithdrawal';
 
 // Retailer
 import RetailerDashboard from './pages/retailer/RetailerDashboard';
@@ -56,6 +58,8 @@ import RetailerSupport from './pages/retailer/RetailerSupport';
 import RetailerPaymentRequest from './pages/retailer/RetailerPaymentRequest';
 import RetailerAddFunds from './pages/retailer/RetailerAddFunds';
 import RetailerTransactionsDetailed from './pages/retailer/RetailerTransactionsDetailed';
+import RetailerWithdrawal from './pages/retailer/RetailerWithdrawal';
+import RetailerTransfer from './pages/retailer/RetailerTransfer';
 
 // Common
 import CommissionPage from './pages/common/CommissionPage';
@@ -113,6 +117,7 @@ export default function App() {
               <Route path="admin/reports/wallet" element={<AdminWalletReport />} />
               <Route path="admin/payments" element={<AdminPayments />} />
               <Route path="admin/platform-earnings" element={<AdminPlatformEarnings />} />
+              <Route path="admin/withdrawals" element={<AdminWithdrawals />} />
               <Route path="admin/support" element={<AdminSupport />} />
               <Route path="admin/settings" element={<AdminSettings />} />
             </Route>
@@ -131,6 +136,7 @@ export default function App() {
               <Route path="distributor/transactions/all" element={<DistributorTransactionsDetailed failedOnly={false} />} />
               <Route path="distributor/transactions/failed" element={<DistributorTransactionsDetailed failedOnly={true} />} />
               <Route path="distributor/transfer" element={<DistributorTransfer />} />
+              <Route path="distributor/withdrawals" element={<DistributorWithdrawal />} />
               <Route path="distributor/add-funds" element={<RetailerAddFunds />} />
               <Route path="distributor/reports" element={<DistributorReports />} />
               <Route path="distributor/support" element={<DistributorSupport />} />
@@ -149,6 +155,8 @@ export default function App() {
               <Route path="retailer/transactions/failed" element={<RetailerTransactionsDetailed failedOnly={true} />} />
               <Route path="retailer/wallet" element={<RetailerWallet />} />
               <Route path="retailer/payment-request" element={<RetailerPaymentRequest />} />
+              <Route path="retailer/withdrawals" element={<RetailerWithdrawal />} />
+              <Route path="retailer/transfer" element={<RetailerTransfer />} />
               <Route path="retailer/add-funds" element={<RetailerAddFunds />} />
               <Route path="retailer/support" element={<RetailerSupport />} />
             </Route>

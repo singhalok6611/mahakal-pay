@@ -9,3 +9,8 @@ export const recharge = (data) => api.post('/retailer/recharge', data);
 export const getOperators = (params) => api.get('/retailer/operators', { params });
 export const createPaymentRequest = (data) => api.post('/retailer/payment-request', data);
 export const createSupportTicket = (data) => api.post('/retailer/support-ticket', data);
+
+// Slice 4: own withdrawals + transfer to parent distributor
+export const createWithdrawal = (data) => api.post('/retailer/withdrawals', data);
+export const getMyWithdrawals = (params) => api.get('/retailer/withdrawals', { params });
+export const transferToParent = (data) => api.post('/retailer/wallet/transfer-to-parent', data);
