@@ -70,9 +70,9 @@ function isLive() {
   return Boolean(EMAIL && PASSWORD && ACCOUNT_MOBILE);
 }
 
-function logApiCall({ transactionId, request, response, httpStatus, errorMessage }) {
+async function logApiCall({ transactionId, request, response, httpStatus, errorMessage }) {
   try {
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO recharge_api_logs (transaction_id, provider, request_payload, response_payload, http_status, error_message)
       VALUES (?, 'pay2all', ?, ?, ?, ?)
     `).run(

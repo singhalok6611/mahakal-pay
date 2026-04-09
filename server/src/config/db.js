@@ -1,178 +1,187 @@
 const path = require('path');
 const fs = require('fs');
+const { AsyncLocalStorage } = require('async_hooks');
+const { createClient } = require('@libsql/client');
 
-const isVercel = !!process.env.VERCEL;
-let db;
+// ─────────────────────────────────────────────────────────────
+// libSQL backend (Turso in prod, local libSQL file in dev).
+//
+// All call sites use the same async wrapper:
+//   await db.prepare(sql).get(...args)
+//   await db.prepare(sql).all(...args)
+//   await db.prepare(sql).run(...args)
+//   await db.transaction(async () => { ... })()
+//
+// Transactions use AsyncLocalStorage so that nested model calls inside an
+// outer db.transaction(fn) all route through the same libSQL transaction
+// object — mirroring better-sqlite3's nested-savepoint semantics in spirit.
+// ─────────────────────────────────────────────────────────────
 
-// Idempotent migrations for existing databases.
-// SQLite's `CREATE TABLE IF NOT EXISTS` won't add columns to an already-existing
-// table, so any column addition has to go through ALTER TABLE here. Each step is
-// wrapped so re-running on an already-migrated DB is a no-op.
+const txContext = new AsyncLocalStorage();
+
+function buildClient() {
+  const url = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
+
+  if (url && token) {
+    // Production / Vercel: talk to Turso over HTTPS.
+    return createClient({ url, authToken: token, intMode: 'number' });
+  }
+
+  // Local fallback: a libSQL file on disk. Same client API, no network.
+  // Lets you run the server without a Turso account during dev.
+  const dbPath = process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH)
+    ? process.env.DB_PATH
+    : path.resolve(__dirname, '../../', process.env.DB_PATH || './data/mahakal.db');
+
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+
+  return createClient({ url: `file:${dbPath}`, intMode: 'number' });
+}
+
+const client = buildClient();
+
+// ─────────────────────────────────────────────────────────────
+// Idempotent ALTER migrations for already-existing databases.
+// SQLite's CREATE TABLE IF NOT EXISTS won't add columns to an existing
+// table, so each column addition runs through ALTER TABLE here. Each step
+// is wrapped so re-running on an already-migrated DB is a no-op.
+// ─────────────────────────────────────────────────────────────
 const MIGRATIONS = [
-  // users.pan
   { name: 'users.pan',             sql: 'ALTER TABLE users ADD COLUMN pan TEXT' },
   { name: 'users.pan_index',       sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pan ON users(pan) WHERE pan IS NOT NULL' },
-  // users.approval_status — default 'approved' so existing rows stay valid;
-  // CHECK constraint is enforced at the model layer for migrated DBs.
   { name: 'users.approval_status', sql: "ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'" },
   { name: 'users.approval_index',  sql: 'CREATE INDEX IF NOT EXISTS idx_users_approval ON users(approval_status)' },
 ];
 
-function runMigrations(target) {
+async function runMigrations() {
   for (const m of MIGRATIONS) {
     try {
-      target.exec(m.sql);
+      await client.execute(m.sql);
     } catch (err) {
-      // "duplicate column name" / "index ... already exists" → already migrated, ignore.
       const msg = String(err && err.message || err);
       if (/duplicate column|already exists/i.test(msg)) continue;
-      // Anything else is unexpected — surface it loudly.
       console.error(`[db migration ${m.name}] failed:`, msg);
       throw err;
     }
   }
 }
 
-if (isVercel) {
-  // Use sql.js (pure JavaScript SQLite) on Vercel serverless
-  const initSqlJs = require('sql.js');
-  const dbPath = '/tmp/mahakal.db';
+// Multi-statement runner. The SQL files in this repo never contain string
+// literals with semicolons, so a simple split is safe. Line comments (--)
+// are stripped first.
+function splitStatements(sql) {
+  return sql
+    .split('\n')
+    .map(line => line.replace(/--.*$/, ''))
+    .join('\n')
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+}
 
-  let dbInstance = null;
-  let initialized = false;
-
-  const initPromise = initSqlJs().then(SQL => {
-    let data = null;
-    try {
-      if (fs.existsSync(dbPath)) {
-        data = fs.readFileSync(dbPath);
-      }
-    } catch (e) {}
-
-    dbInstance = data ? new SQL.Database(data) : new SQL.Database();
-
-    // Run schema
-    const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
-    dbInstance.run(schema);
-
-    // Run idempotent ALTER migrations for already-existing databases
-    runMigrations({ exec: (sql) => dbInstance.run(sql) });
-
-    // Run seed
-    const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
-    dbInstance.run(seed);
-
-    // Save
-    fs.writeFileSync(dbPath, Buffer.from(dbInstance.export()));
-    initialized = true;
-    return dbInstance;
-  });
-
-  function save() {
-    if (dbInstance) {
-      fs.writeFileSync(dbPath, Buffer.from(dbInstance.export()));
-    }
+async function execMultiple(sql) {
+  for (const stmt of splitStatements(sql)) {
+    await client.execute(stmt);
   }
+}
 
-  db = {
-    _initPromise: initPromise,
-    get _ready() { return initialized; },
+// One-shot init: schema → migrations → seed. Every other DB call awaits
+// initPromise before doing anything, so models don't need to know it exists.
+const initPromise = (async () => {
+  const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
+  await execMultiple(schema);
+  await runMigrations();
+  const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
+  await execMultiple(seed);
+})();
 
-    pragma() {},
+initPromise.catch(err => {
+  console.error('[db init] failed:', err);
+  process.exit(1);
+});
 
-    prepare(sql) {
+// ─────────────────────────────────────────────────────────────
+// Statement wrapper. Routes through the active transaction if one is set
+// in AsyncLocalStorage, otherwise straight through the client.
+//
+// libSQL rejects `undefined` bind values (better-sqlite3 used to silently
+// coerce them to NULL). Convert undefined -> null here so the rest of the
+// codebase can pass optional fields (e.g. shop_name, pincode) without
+// having to defensively `?? null` every column.
+// ─────────────────────────────────────────────────────────────
+function normalizeArgs(params) {
+  if (!params || params.length === 0) return params;
+  return params.map(v => v === undefined ? null : v);
+}
+
+async function execStmt(sql, params) {
+  await initPromise;
+  const tx = txContext.getStore();
+  const target = tx || client;
+  return target.execute({ sql, args: normalizeArgs(params) });
+}
+
+function makeStatement(sql) {
+  return {
+    async get(...params) {
+      const r = await execStmt(sql, params);
+      return r.rows[0]; // undefined if no rows
+    },
+    async all(...params) {
+      const r = await execStmt(sql, params);
+      return r.rows;
+    },
+    async run(...params) {
+      const r = await execStmt(sql, params);
       return {
-        get(...params) {
-          if (!dbInstance) throw new Error('DB not initialized');
-          const stmt = dbInstance.prepare(sql);
-          if (params.length > 0) stmt.bind(params);
-          let row;
-          if (stmt.step()) {
-            row = stmt.getAsObject();
-          }
-          stmt.free();
-          return row || undefined;
-        },
-        all(...params) {
-          if (!dbInstance) throw new Error('DB not initialized');
-          const results = [];
-          const stmt = dbInstance.prepare(sql);
-          if (params.length > 0) stmt.bind(params);
-          while (stmt.step()) {
-            results.push(stmt.getAsObject());
-          }
-          stmt.free();
-          return results;
-        },
-        run(...params) {
-          if (!dbInstance) throw new Error('DB not initialized');
-          dbInstance.run(sql, params);
-          save();
-          const lastId = dbInstance.exec("SELECT last_insert_rowid()");
-          return {
-            lastInsertRowid: lastId[0]?.values[0]?.[0] || 0,
-            changes: dbInstance.getRowsModified(),
-          };
-        },
-      };
-    },
-
-    exec(sql) {
-      if (!dbInstance) throw new Error('DB not initialized');
-      dbInstance.run(sql);
-      save();
-    },
-
-    transaction(fn) {
-      return (...args) => {
-        if (!dbInstance) throw new Error('DB not initialized');
-        dbInstance.run('BEGIN TRANSACTION');
-        try {
-          const result = fn(...args);
-          dbInstance.run('COMMIT');
-          save();
-          return result;
-        } catch (e) {
-          dbInstance.run('ROLLBACK');
-          throw e;
-        }
+        lastInsertRowid: r.lastInsertRowid != null ? Number(r.lastInsertRowid) : 0,
+        changes: r.rowsAffected || 0,
       };
     },
   };
-} else {
-  // Local dev: use better-sqlite3
-  let Database;
-  try {
-    const moduleName = 'better-sqlite3';
-    Database = require(moduleName);
-  } catch (e) {
-    throw new Error('better-sqlite3 not available. Set VERCEL=1 to use sql.js instead.');
-  }
-
-  let dbPath;
-  if (process.env.DB_PATH && path.isAbsolute(process.env.DB_PATH)) {
-    dbPath = process.env.DB_PATH;
-  } else {
-    dbPath = path.resolve(__dirname, '../../', process.env.DB_PATH || './data/mahakal.db');
-  }
-
-  const dbDir = path.dirname(dbPath);
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
-  }
-
-  db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-
-  const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
-  db.exec(schema);
-
-  // Run idempotent ALTER migrations for already-existing databases
-  runMigrations(db);
-
-  const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
-  db.exec(seed);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Public API.
+// ─────────────────────────────────────────────────────────────
+const db = {
+  prepare(sql) {
+    return makeStatement(sql);
+  },
+
+  async exec(sql) {
+    await initPromise;
+    await execMultiple(sql);
+  },
+
+  // db.transaction(fn) returns an async function. When invoked, it opens a
+  // libSQL write transaction, stores it in AsyncLocalStorage, runs fn,
+  // commits on success, rolls back on throw.
+  //
+  // Reentrancy: if fn itself calls db.transaction(fn2)(), the inner call
+  // sees the existing tx in AsyncLocalStorage and skips opening a new one
+  // — fn2 just runs inline within the outer atomic boundary. This matches
+  // better-sqlite3's nested-savepoint behavior in practice.
+  transaction(fn) {
+    return async (...args) => {
+      await initPromise;
+      const existing = txContext.getStore();
+      if (existing) {
+        return fn(...args);
+      }
+      const tx = await client.transaction('write');
+      try {
+        const result = await txContext.run(tx, async () => fn(...args));
+        await tx.commit();
+        return result;
+      } catch (err) {
+        try { await tx.rollback(); } catch {}
+        throw err;
+      }
+    };
+  },
+};
 
 module.exports = db;

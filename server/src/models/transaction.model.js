@@ -1,25 +1,25 @@
 const db = require('../config/db');
 
 const TransactionModel = {
-  create({ user_id, service_type, operator, subscriber_id, amount, status, commission }) {
-    const result = db.prepare(`
+  async create({ user_id, service_type, operator, subscriber_id, amount, status, commission }) {
+    const result = await db.prepare(`
       INSERT INTO transactions (user_id, service_type, operator, subscriber_id, amount, status, commission)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(user_id, service_type, operator, subscriber_id, amount, status || 'pending', commission || 0);
     return this.findById(result.lastInsertRowid);
   },
 
-  findById(id) {
+  async findById(id) {
     return db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
   },
 
-  updateStatus(id, status, apiTxnId) {
-    db.prepare('UPDATE transactions SET status = ?, api_txn_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+  async updateStatus(id, status, apiTxnId) {
+    await db.prepare('UPDATE transactions SET status = ?, api_txn_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(status, apiTxnId, id);
     return this.findById(id);
   },
 
-  listByUser(userId, page = 1, limit = 20, filters = {}) {
+  async listByUser(userId, page = 1, limit = 20, filters = {}) {
     const offset = (page - 1) * limit;
     let where = 'WHERE user_id = ?';
     const params = [userId];
@@ -33,12 +33,12 @@ const TransactionModel = {
       params.push(filters.service_type);
     }
 
-    const transactions = db.prepare(`SELECT * FROM transactions ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM transactions ${where}`).get(...params).count;
-    return { transactions, total, page, limit };
+    const transactions = await db.prepare(`SELECT * FROM transactions ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, limit, offset);
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM transactions ${where}`).get(...params);
+    return { transactions, total: totalRow.count, page, limit };
   },
 
-  listAll(page = 1, limit = 20, filters = {}) {
+  async listAll(page = 1, limit = 20, filters = {}) {
     const offset = (page - 1) * limit;
     let where = 'WHERE 1=1';
     const params = [];
@@ -56,16 +56,16 @@ const TransactionModel = {
       params.push(filters.user_id);
     }
 
-    const transactions = db.prepare(`
+    const transactions = await db.prepare(`
       SELECT t.*, u.name as user_name, u.phone as user_phone
       FROM transactions t JOIN users u ON t.user_id = u.id
       ${where} ORDER BY t.id DESC LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM transactions t ${where}`).get(...params).count;
-    return { transactions, total, page, limit };
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM transactions t ${where}`).get(...params);
+    return { transactions, total: totalRow.count, page, limit };
   },
 
-  listByParentUser(parentId, page = 1, limit = 20, filters = {}) {
+  async listByParentUser(parentId, page = 1, limit = 20, filters = {}) {
     const offset = (page - 1) * limit;
     let where = 'WHERE t.user_id IN (SELECT id FROM users WHERE parent_id = ?)';
     const params = [parentId];
@@ -75,16 +75,16 @@ const TransactionModel = {
       params.push(filters.status);
     }
 
-    const transactions = db.prepare(`
+    const transactions = await db.prepare(`
       SELECT t.*, u.name as user_name, u.phone as user_phone
       FROM transactions t JOIN users u ON t.user_id = u.id
       ${where} ORDER BY t.id DESC LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM transactions t ${where}`).get(...params).count;
-    return { transactions, total, page, limit };
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM transactions t ${where}`).get(...params);
+    return { transactions, total: totalRow.count, page, limit };
   },
 
-  getTodayStats(userFilter = null) {
+  async getTodayStats(userFilter = null) {
     let where = "WHERE DATE(t.created_at) = DATE('now')";
     const params = [];
 
@@ -124,7 +124,7 @@ const TransactionModel = {
    * @param {string} [opts.status]      filter by status (e.g. 'failed')
    * @param {string} [opts.service_type]
    */
-  listDetailed({ scope, scopeUserId, page = 1, limit = 20, status, service_type } = {}) {
+  async listDetailed({ scope, scopeUserId, page = 1, limit = 20, status, service_type } = {}) {
     const offset = (page - 1) * limit;
 
     let where;
@@ -150,7 +150,7 @@ const TransactionModel = {
       params.push(service_type);
     }
 
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT
         t.id              AS id,
         t.id              AS transaction_id,
@@ -182,17 +182,17 @@ const TransactionModel = {
       LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
 
-    const total = db.prepare(`
+    const totalRow = await db.prepare(`
       SELECT COUNT(*) as count
       FROM transactions t
       INNER JOIN users r ON r.id = t.user_id
       ${where}
-    `).get(...params).count;
+    `).get(...params);
 
-    return { rows, total, page, limit };
+    return { rows, total: totalRow.count, page, limit };
   },
 
-  getTodayCommission(userFilter = null) {
+  async getTodayCommission(userFilter = null) {
     let where = "WHERE DATE(created_at) = DATE('now') AND status = 'success'";
     const params = [];
 
@@ -201,7 +201,8 @@ const TransactionModel = {
       params.push(userFilter.value);
     }
 
-    return db.prepare(`SELECT COALESCE(SUM(commission), 0) as total FROM transactions ${where}`).get(...params).total;
+    const row = await db.prepare(`SELECT COALESCE(SUM(commission), 0) as total FROM transactions ${where}`).get(...params);
+    return row.total;
   },
 };
 

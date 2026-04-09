@@ -1,6 +1,11 @@
 require('dotenv').config();
 
 const express = require('express');
+// Patches Express 4 so async route handlers' rejected promises are
+// forwarded to the error middleware instead of becoming unhandled
+// rejections that crash the process. MUST be required before any router.
+require('express-async-errors');
+
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');

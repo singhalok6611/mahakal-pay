@@ -31,35 +31,38 @@ function generateRandomPassword(length = 12) {
 }
 
 const AdminController = {
-  dashboard(req, res) {
-    const rechargeStats = TransactionModel.getTodayStats();
-    const userCounts = UserModel.countByRole();
-    const distBalance = WalletModel.getTotalBalanceByRole('distributor');
-    const retailerBalance = WalletModel.getTotalBalanceByRole('retailer');
-    const todayCommission = TransactionModel.getTodayCommission();
+  async dashboard(req, res) {
+    const rechargeStats = await TransactionModel.getTodayStats();
+    const userCounts = await UserModel.countByRole();
+    const distBalance = await WalletModel.getTotalBalanceByRole('distributor');
+    const retailerBalance = await WalletModel.getTotalBalanceByRole('retailer');
+    const todayCommission = await TransactionModel.getTodayCommission();
     // Slice 5: admin earnings rollup (today / 7d / month / lifetime) from
     // commission_splits — surfaced on the dashboard so the admin sees the
     // money funnel without clicking into the platform earnings page.
-    const earnings = CommissionSplitModel.totals();
+    const earnings = await CommissionSplitModel.totals();
 
     const distCount = userCounts.find(r => r.role === 'distributor')?.count || 0;
     const retailerCount = userCounts.find(r => r.role === 'retailer')?.count || 0;
 
     // Today's wallet statement
-    const todayCredits = db.prepare(`
+    const todayCreditsRow = await db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM wallet_transactions
       WHERE type = 'credit' AND DATE(created_at) = DATE('now')
-    `).get().total;
+    `).get();
+    const todayCredits = todayCreditsRow.total;
 
-    const todayDebits = db.prepare(`
+    const todayDebitsRow = await db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM wallet_transactions
       WHERE type = 'debit' AND DATE(created_at) = DATE('now')
-    `).get().total;
+    `).get();
+    const todayDebits = todayDebitsRow.total;
 
-    const todayPaymentReqs = db.prepare(`
+    const todayPaymentReqsRow = await db.prepare(`
       SELECT COALESCE(SUM(amount), 0) as total FROM payment_requests
       WHERE status = 'approved' AND DATE(created_at) = DATE('now')
-    `).get().total;
+    `).get();
+    const todayPaymentReqs = todayPaymentReqsRow.total;
 
     // Opening balance = total wallet balance at start of day (total - today credits + today debits)
     const totalBalance = distBalance + retailerBalance;
@@ -67,7 +70,7 @@ const AdminController = {
     const closingBalance = totalBalance;
 
     // Today Payment Requests breakdown
-    const paymentReqStats = db.prepare(`
+    const paymentReqStats = await db.prepare(`
       SELECT
         COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as accepted_amount,
         COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) as accepted_count,
@@ -81,7 +84,7 @@ const AdminController = {
     `).get();
 
     // Today Support Tickets breakdown
-    const supportStats = db.prepare(`
+    const supportStats = await db.prepare(`
       SELECT
         COALESCE(SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END), 0) as open_count,
         COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) as pending_count,
@@ -89,6 +92,8 @@ const AdminController = {
         COUNT(*) as total_count
       FROM support_tickets WHERE DATE(created_at) = DATE('now')
     `).get();
+
+    const unreadNotifications = await NotificationModel.countUnread(req.user.id);
 
     res.json({
       recharge: rechargeStats,
@@ -120,11 +125,11 @@ const AdminController = {
         distributor_total_lifetime: earnings.distributor_total_lifetime || 0,
         count: earnings.count || 0,
       },
-      unreadNotifications: NotificationModel.countUnread(req.user.id),
+      unreadNotifications,
     });
   },
 
-  createDistributor(req, res) {
+  async createDistributor(req, res) {
     const { name, email, phone, password, pan, shop_name, address, city, state, pincode } = req.body;
 
     if (!name || !email || !phone || !password || !pan) {
@@ -136,18 +141,18 @@ const AdminController = {
       return res.status(400).json({ error: 'PAN must be in format ABCDE1234F (5 letters, 4 digits, 1 letter)' });
     }
 
-    if (UserModel.findByEmail(email)) {
+    if (await UserModel.findByEmail(email)) {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    if (UserModel.findByPhone(phone)) {
+    if (await UserModel.findByPhone(phone)) {
       return res.status(400).json({ error: 'Phone already exists' });
     }
-    if (UserModel.findByPan(normalizedPan)) {
+    if (await UserModel.findByPan(normalizedPan)) {
       return res.status(400).json({ error: 'PAN already registered to another account' });
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
-    const user = UserModel.create({
+    const user = await UserModel.create({
       parent_id: req.user.id,
       role: 'distributor',
       name, email, phone, pan: normalizedPan, password_hash,
@@ -165,52 +170,54 @@ const AdminController = {
     res.status(201).json({ message: 'Distributor created', user });
   },
 
-  listUsers(req, res) {
+  async listUsers(req, res) {
     const { role, page = 1, limit = 20 } = req.query;
 
     // Hydrate the wallet balance onto every row so the admin tables can show
     // per-user wallet balance without an N+1 fetch from the client.
-    const attachBalance = (user) => {
-      const wallet = WalletModel.getByUserId(user.id);
+    const attachBalance = async (user) => {
+      const wallet = await WalletModel.getByUserId(user.id);
       return { ...user, balance: wallet ? wallet.balance : 0 };
     };
 
     if (role) {
-      const result = UserModel.listByRole(role, parseInt(page), parseInt(limit));
-      result.users = result.users.map(attachBalance);
+      const result = await UserModel.listByRole(role, parseInt(page), parseInt(limit));
+      result.users = await Promise.all(result.users.map(attachBalance));
       return res.json(result);
     }
     // List all non-admin users
-    const distributors = UserModel.listByRole('distributor', 1, 1000);
-    const retailers = UserModel.listByRole('retailer', 1, 1000);
+    const distributors = await UserModel.listByRole('distributor', 1, 1000);
+    const retailers = await UserModel.listByRole('retailer', 1, 1000);
+    const distUsers = await Promise.all(distributors.users.map(attachBalance));
+    const retailUsers = await Promise.all(retailers.users.map(attachBalance));
     res.json({
-      users: [...distributors.users.map(attachBalance), ...retailers.users.map(attachBalance)],
+      users: [...distUsers, ...retailUsers],
       total: distributors.total + retailers.total,
     });
   },
 
-  updateUser(req, res) {
+  async updateUser(req, res) {
     const { id } = req.params;
-    const user = UserModel.findById(parseInt(id));
+    const user = await UserModel.findById(parseInt(id));
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const updated = UserModel.update(parseInt(id), req.body);
+    const updated = await UserModel.update(parseInt(id), req.body);
     res.json({ message: 'User updated', user: updated });
   },
 
-  getTransactions(req, res) {
+  async getTransactions(req, res) {
     const { page = 1, limit = 20, status, service_type, user_id } = req.query;
     const filters = { status, service_type };
     if (user_id) filters.user_id = parseInt(user_id);
-    const result = TransactionModel.listAll(parseInt(page), parseInt(limit), filters);
+    const result = await TransactionModel.listAll(parseInt(page), parseInt(limit), filters);
     res.json(result);
   },
 
   // Slice 6: detailed All/Failed Transactions feed for the admin role.
   // Returns the full commission split breakdown — admin sees everything.
-  getDetailedTransactions(req, res) {
+  async getDetailedTransactions(req, res) {
     const { page = 1, limit = 20, status, service_type } = req.query;
-    const result = TransactionModel.listDetailed({
+    const result = await TransactionModel.listDetailed({
       scope: 'admin',
       scopeUserId: req.user.id,
       page: parseInt(page),
@@ -226,127 +233,127 @@ const AdminController = {
   },
 
   // KYC
-  listKYC(req, res) {
+  async listKYC(req, res) {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let where = 'WHERE 1=1';
     const params = [];
     if (status) { where += ' AND k.status = ?'; params.push(status); }
 
-    const requests = db.prepare(`
+    const requests = await db.prepare(`
       SELECT k.*, u.name as user_name, u.phone as user_phone
       FROM kyc_requests k JOIN users u ON k.user_id = u.id
       ${where} ORDER BY k.id DESC LIMIT ? OFFSET ?
     `).all(...params, parseInt(limit), offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM kyc_requests k ${where}`).get(...params).count;
-    res.json({ requests, total, page: parseInt(page), limit: parseInt(limit) });
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM kyc_requests k ${where}`).get(...params);
+    res.json({ requests, total: totalRow.count, page: parseInt(page), limit: parseInt(limit) });
   },
 
-  updateKYC(req, res) {
+  async updateKYC(req, res) {
     const { id } = req.params;
     const { status, remarks } = req.body;
-    db.prepare('UPDATE kyc_requests SET status = ?, remarks = ?, reviewed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    await db.prepare('UPDATE kyc_requests SET status = ?, remarks = ?, reviewed_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(status, remarks, req.user.id, parseInt(id));
 
     if (status === 'approved') {
-      const kyc = db.prepare('SELECT user_id FROM kyc_requests WHERE id = ?').get(parseInt(id));
+      const kyc = await db.prepare('SELECT user_id FROM kyc_requests WHERE id = ?').get(parseInt(id));
       if (kyc) {
-        db.prepare("UPDATE users SET kyc_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(kyc.user_id);
+        await db.prepare("UPDATE users SET kyc_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(kyc.user_id);
       }
     }
     res.json({ message: 'KYC updated' });
   },
 
   // Payment Requests
-  listPaymentRequests(req, res) {
+  async listPaymentRequests(req, res) {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let where = 'WHERE 1=1';
     const params = [];
     if (status) { where += ' AND p.status = ?'; params.push(status); }
 
-    const requests = db.prepare(`
+    const requests = await db.prepare(`
       SELECT p.*, u.name as user_name, u.phone as user_phone
       FROM payment_requests p JOIN users u ON p.user_id = u.id
       ${where} ORDER BY p.id DESC LIMIT ? OFFSET ?
     `).all(...params, parseInt(limit), offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM payment_requests p ${where}`).get(...params).count;
-    res.json({ requests, total, page: parseInt(page), limit: parseInt(limit) });
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM payment_requests p ${where}`).get(...params);
+    res.json({ requests, total: totalRow.count, page: parseInt(page), limit: parseInt(limit) });
   },
 
-  updatePaymentRequest(req, res) {
+  async updatePaymentRequest(req, res) {
     const { id } = req.params;
     const { status } = req.body;
 
-    const request = db.prepare('SELECT * FROM payment_requests WHERE id = ?').get(parseInt(id));
+    const request = await db.prepare('SELECT * FROM payment_requests WHERE id = ?').get(parseInt(id));
     if (!request) return res.status(404).json({ error: 'Request not found' });
 
-    db.prepare('UPDATE payment_requests SET status = ?, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    await db.prepare('UPDATE payment_requests SET status = ?, approved_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(status, req.user.id, parseInt(id));
 
     if (status === 'approved') {
-      WalletModel.credit(request.user_id, request.amount, 'fund_transfer', parseInt(id), 'Payment request approved');
+      await WalletModel.credit(request.user_id, request.amount, 'fund_transfer', parseInt(id), 'Payment request approved');
     }
 
     res.json({ message: 'Payment request updated' });
   },
 
-  creditWallet(req, res) {
+  async creditWallet(req, res) {
     const { user_id, amount, description } = req.body;
     if (!user_id || !amount) return res.status(400).json({ error: 'User ID and amount required' });
 
-    const user = UserModel.findById(parseInt(user_id));
+    const user = await UserModel.findById(parseInt(user_id));
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const result = WalletModel.credit(parseInt(user_id), parseFloat(amount), 'admin_credit', null, description || 'Admin credit');
+    const result = await WalletModel.credit(parseInt(user_id), parseFloat(amount), 'admin_credit', null, description || 'Admin credit');
     res.json({ message: 'Wallet credited', balance: result.balance });
   },
 
   // Support
-  listSupportTickets(req, res) {
+  async listSupportTickets(req, res) {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let where = 'WHERE 1=1';
     const params = [];
     if (status) { where += ' AND s.status = ?'; params.push(status); }
 
-    const tickets = db.prepare(`
+    const tickets = await db.prepare(`
       SELECT s.*, u.name as user_name, u.phone as user_phone
       FROM support_tickets s JOIN users u ON s.user_id = u.id
       ${where} ORDER BY s.id DESC LIMIT ? OFFSET ?
     `).all(...params, parseInt(limit), offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM support_tickets s ${where}`).get(...params).count;
-    res.json({ tickets, total, page: parseInt(page), limit: parseInt(limit) });
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM support_tickets s ${where}`).get(...params);
+    res.json({ tickets, total: totalRow.count, page: parseInt(page), limit: parseInt(limit) });
   },
 
-  updateSupportTicket(req, res) {
+  async updateSupportTicket(req, res) {
     const { id } = req.params;
     const { status } = req.body;
-    db.prepare('UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    await db.prepare('UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(status, parseInt(id));
     res.json({ message: 'Ticket updated' });
   },
 
-  getSettings(req, res) {
-    const settings = db.prepare('SELECT * FROM settings').all();
+  async getSettings(req, res) {
+    const settings = await db.prepare('SELECT * FROM settings').all();
     const obj = {};
     settings.forEach(s => { obj[s.key] = s.value; });
     res.json(obj);
   },
 
-  updateSettings(req, res) {
+  async updateSettings(req, res) {
     const upsert = db.prepare('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)');
     const entries = Object.entries(req.body);
-    const txn = db.transaction(() => {
+    const txn = db.transaction(async () => {
       for (const [key, value] of entries) {
-        upsert.run(key, String(value));
+        await upsert.run(key, String(value));
       }
     });
-    txn();
+    await txn();
     res.json({ message: 'Settings updated' });
   },
 
-  createRetailer(req, res) {
+  async createRetailer(req, res) {
     const { name, email, phone, password, pan, parent_id, shop_name, address, city, state, pincode } = req.body;
 
     if (!name || !email || !phone || !password || !pan || !parent_id) {
@@ -358,23 +365,23 @@ const AdminController = {
       return res.status(400).json({ error: 'PAN must be in format ABCDE1234F (5 letters, 4 digits, 1 letter)' });
     }
 
-    const parent = UserModel.findById(parseInt(parent_id));
+    const parent = await UserModel.findById(parseInt(parent_id));
     if (!parent || parent.role !== 'distributor') {
       return res.status(400).json({ error: 'Invalid parent_id. Must be a valid distributor.' });
     }
 
-    if (UserModel.findByEmail(email)) {
+    if (await UserModel.findByEmail(email)) {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    if (UserModel.findByPhone(phone)) {
+    if (await UserModel.findByPhone(phone)) {
       return res.status(400).json({ error: 'Phone already exists' });
     }
-    if (UserModel.findByPan(normalizedPan)) {
+    if (await UserModel.findByPan(normalizedPan)) {
       return res.status(400).json({ error: 'PAN already registered to another account' });
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
-    const user = UserModel.create({
+    const user = await UserModel.create({
       parent_id: parseInt(parent_id),
       role: 'retailer',
       name, email, phone, pan: normalizedPan, password_hash,
@@ -394,51 +401,51 @@ const AdminController = {
 
   // ---------- Retailer approval queue ----------
 
-  listPendingRetailers(req, res) {
+  async listPendingRetailers(req, res) {
     const { page = 1, limit = 20 } = req.query;
-    const result = UserModel.listPendingRetailers(parseInt(page), parseInt(limit));
+    const result = await UserModel.listPendingRetailers(parseInt(page), parseInt(limit));
     res.json(result);
   },
 
-  approveRetailer(req, res) {
+  async approveRetailer(req, res) {
     const id = parseInt(req.params.id);
-    const user = UserModel.findById(id);
+    const user = await UserModel.findById(id);
     if (!user || user.role !== 'retailer') {
       return res.status(404).json({ error: 'Retailer not found' });
     }
     if (user.approval_status === 'approved') {
       return res.status(400).json({ error: 'Retailer is already approved' });
     }
-    const updated = UserModel.setApprovalStatus(id, 'approved');
+    const updated = await UserModel.setApprovalStatus(id, 'approved');
     notify.retailerApproved({ retailer: updated });
     res.json({ message: 'Retailer approved', user: updated });
   },
 
-  rejectRetailer(req, res) {
+  async rejectRetailer(req, res) {
     const id = parseInt(req.params.id);
-    const user = UserModel.findById(id);
+    const user = await UserModel.findById(id);
     if (!user || user.role !== 'retailer') {
       return res.status(404).json({ error: 'Retailer not found' });
     }
-    const updated = UserModel.setApprovalStatus(id, 'rejected');
+    const updated = await UserModel.setApprovalStatus(id, 'rejected');
     notify.retailerRejected({ retailer: updated });
     res.json({ message: 'Retailer rejected', user: updated });
   },
 
   // ---------- Slice 4: Withdrawals ----------
 
-  listWithdrawals(req, res) {
+  async listWithdrawals(req, res) {
     const { status, page = 1, limit = 20 } = req.query;
-    const result = WithdrawalModel.listAll({ status, page: parseInt(page), limit: parseInt(limit) });
+    const result = await WithdrawalModel.listAll({ status, page: parseInt(page), limit: parseInt(limit) });
     res.json(result);
   },
 
-  approveWithdrawal(req, res) {
+  async approveWithdrawal(req, res) {
     const id = parseInt(req.params.id);
     const { remarks } = req.body || {};
     try {
-      const w = WithdrawalModel.approve(id, req.user.id, remarks);
-      const user = UserModel.findById(w.user_id);
+      const w = await WithdrawalModel.approve(id, req.user.id, remarks);
+      const user = await UserModel.findById(w.user_id);
       notify.withdrawalApproved({ user, withdrawal: w });
       res.json({ message: 'Withdrawal approved and wallet debited', withdrawal: w });
     } catch (err) {
@@ -446,12 +453,12 @@ const AdminController = {
     }
   },
 
-  rejectWithdrawal(req, res) {
+  async rejectWithdrawal(req, res) {
     const id = parseInt(req.params.id);
     const { remarks } = req.body || {};
     try {
-      const w = WithdrawalModel.reject(id, req.user.id, remarks);
-      const user = UserModel.findById(w.user_id);
+      const w = await WithdrawalModel.reject(id, req.user.id, remarks);
+      const user = await UserModel.findById(w.user_id);
       notify.withdrawalRejected({ user, withdrawal: w, remarks });
       res.json({ message: 'Withdrawal rejected', withdrawal: w });
     } catch (err) {
@@ -466,12 +473,12 @@ const AdminController = {
   // SWEPT to the admin wallet, with a clean audit trail on both sides.
   // Refresh tokens are revoked so an in-flight session cannot keep going.
 
-  suspendUser(req, res) {
+  async suspendUser(req, res) {
     const id = parseInt(req.params.id);
     if (id === ADMIN_USER_ID) {
       return res.status(400).json({ error: 'Cannot suspend the admin account' });
     }
-    const user = UserModel.findById(id);
+    const user = await UserModel.findById(id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.role === 'admin') {
       return res.status(400).json({ error: 'Cannot suspend an admin user' });
@@ -480,20 +487,20 @@ const AdminController = {
       return res.status(400).json({ error: 'User is already blocked' });
     }
 
-    const wallet = WalletModel.getByUserId(id);
+    const wallet = await WalletModel.getByUserId(id);
     const sweepAmount = wallet ? Math.round(wallet.balance * 100) / 100 : 0;
 
-    const txn = db.transaction(() => {
+    const txn = db.transaction(async () => {
       // 1. Sweep wallet (only if there's anything to sweep).
       if (sweepAmount > 0) {
-        WalletModel.debit(
+        await WalletModel.debit(
           id,
           sweepAmount,
           'suspension_sweep',
           id,
           `Wallet swept on suspension of ${user.role} ${user.name}`
         );
-        WalletModel.credit(
+        await WalletModel.credit(
           ADMIN_USER_ID,
           sweepAmount,
           'suspension_sweep',
@@ -502,33 +509,35 @@ const AdminController = {
         );
       }
       // 2. Block the account.
-      UserModel.updateStatus(id, 'blocked');
+      await UserModel.updateStatus(id, 'blocked');
       // 3. Revoke any active sessions.
-      try { RefreshTokenModel.revokeAllForUser(id); } catch {}
+      try { await RefreshTokenModel.revokeAllForUser(id); } catch {}
     });
-    txn();
+    await txn();
 
     notify.suspension({ user, sweptAmount: sweepAmount });
 
+    const refreshed = await UserModel.findById(id);
     res.json({
       message: `User suspended${sweepAmount > 0 ? ` and ₹${sweepAmount.toFixed(2)} swept to admin wallet` : ''}`,
-      user: UserModel.findById(id),
+      user: refreshed,
       sweptAmount: sweepAmount,
     });
   },
 
-  reactivateUser(req, res) {
+  async reactivateUser(req, res) {
     // Reactivation does NOT restore swept funds — that's by design. The
     // swept funds are now part of the admin wallet's audit trail and
     // would have to be transferred back manually if the admin wants to.
     const id = parseInt(req.params.id);
-    const user = UserModel.findById(id);
+    const user = await UserModel.findById(id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.status === 'active') {
       return res.status(400).json({ error: 'User is already active' });
     }
-    UserModel.updateStatus(id, 'active');
-    res.json({ message: 'User reactivated', user: UserModel.findById(id) });
+    await UserModel.updateStatus(id, 'active');
+    const refreshed = await UserModel.findById(id);
+    res.json({ message: 'User reactivated', user: refreshed });
   },
 
   // ---------- Slice 4: Generic admin → any user wallet transfer ----------
@@ -542,14 +551,14 @@ const AdminController = {
   // on. Existing sessions are killed (refresh tokens revoked) so the
   // user must log in again with the new password.
 
-  resetUserPassword(req, res) {
+  async resetUserPassword(req, res) {
     const id = parseInt(req.params.id);
     if (id === ADMIN_USER_ID) {
       return res.status(400).json({
         error: 'Use the change-password flow on your own account, not this admin reset endpoint.',
       });
     }
-    const user = UserModel.findById(id);
+    const user = await UserModel.findById(id);
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (user.role === 'admin') {
       return res.status(400).json({ error: 'Cannot reset another admin user from here' });
@@ -569,11 +578,11 @@ const AdminController = {
     }
 
     const hash = bcrypt.hashSync(newPassword, 10);
-    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    await db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(hash, id);
 
     // Force the user out of every active session.
-    try { RefreshTokenModel.revokeAllForUser(id); } catch {}
+    try { await RefreshTokenModel.revokeAllForUser(id); } catch {}
 
     res.json({
       message: 'Password reset successful. The user must log in again.',
@@ -586,9 +595,9 @@ const AdminController = {
 
   // ---------- Slice 5: Notifications (admin inbox) ----------
 
-  listNotifications(req, res) {
+  async listNotifications(req, res) {
     const { page = 1, limit = 50, unread } = req.query;
-    const result = NotificationModel.listByUser(req.user.id, {
+    const result = await NotificationModel.listByUser(req.user.id, {
       page: parseInt(page),
       limit: parseInt(limit),
       unreadOnly: unread === '1' || unread === 'true',
@@ -596,19 +605,20 @@ const AdminController = {
     res.json(result);
   },
 
-  markNotificationRead(req, res) {
+  async markNotificationRead(req, res) {
     const id = parseInt(req.params.id);
-    NotificationModel.markRead(id, req.user.id);
+    await NotificationModel.markRead(id, req.user.id);
     res.json({ message: 'Marked as read' });
   },
 
-  markAllNotificationsRead(req, res) {
-    const r = NotificationModel.markAllRead(req.user.id);
+  async markAllNotificationsRead(req, res) {
+    const r = await NotificationModel.markAllRead(req.user.id);
     res.json({ message: 'All notifications marked as read', changed: r.changed });
   },
 
-  notificationsCount(req, res) {
-    res.json({ unread: NotificationModel.countUnread(req.user.id) });
+  async notificationsCount(req, res) {
+    const unread = await NotificationModel.countUnread(req.user.id);
+    res.json({ unread });
   },
 
   // ---------- Pay2All float health & reconciliation ----------
@@ -622,10 +632,9 @@ const AdminController = {
     const balanceResult = await Pay2AllService.checkBalance();
     const pay2allBalance = Number(balanceResult.balance ?? 0);
 
-    const internalTotal = Number(
-      db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM wallets').get().s || 0
-    );
-    const breakdown = db.prepare(`
+    const sumRow = await db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM wallets').get();
+    const internalTotal = Number(sumRow.s || 0);
+    const breakdown = await db.prepare(`
       SELECT u.role AS role, COALESCE(SUM(w.balance), 0) AS sum
       FROM wallets w JOIN users u ON u.id = w.user_id
       GROUP BY u.role
@@ -667,12 +676,12 @@ const AdminController = {
   // Last N days reconciliation: txns attempted / successful / failed,
   // gross recharge volume, total commission distributed across the
   // three layers, plus the net change to all internal wallets.
-  reconciliationReport(req, res) {
+  async reconciliationReport(req, res) {
     const days = Math.min(parseInt(req.query.days || '7', 10), 90);
     const rows = [];
     for (let i = 0; i < days; i++) {
       const dateExpr = `date('now', '-${i} days')`;
-      const txn = db.prepare(`
+      const txn = await db.prepare(`
         SELECT
           COUNT(*) AS attempted,
           COALESCE(SUM(CASE WHEN status='success' THEN 1 ELSE 0 END), 0) AS success_count,
@@ -684,7 +693,7 @@ const AdminController = {
         WHERE date(created_at) = ${dateExpr}
       `).get();
 
-      const split = db.prepare(`
+      const split = await db.prepare(`
         SELECT
           COALESCE(SUM(admin_share_amount), 0) AS admin_total,
           COALESCE(SUM(distributor_share_amount), 0) AS dist_total,
@@ -693,16 +702,20 @@ const AdminController = {
         WHERE date(created_at) = ${dateExpr}
       `).get();
 
-      const credits = db.prepare(`
+      const creditsRow = await db.prepare(`
         SELECT COALESCE(SUM(amount), 0) AS s FROM wallet_transactions
         WHERE type='credit' AND date(created_at) = ${dateExpr}
-      `).get().s || 0;
-      const debits = db.prepare(`
+      `).get();
+      const credits = creditsRow.s || 0;
+
+      const debitsRow = await db.prepare(`
         SELECT COALESCE(SUM(amount), 0) AS s FROM wallet_transactions
         WHERE type='debit' AND date(created_at) = ${dateExpr}
-      `).get().s || 0;
+      `).get();
+      const debits = debitsRow.s || 0;
 
-      const dateRow = db.prepare(`SELECT ${dateExpr} AS d`).get().d;
+      const dateRowResult = await db.prepare(`SELECT ${dateExpr} AS d`).get();
+      const dateRow = dateRowResult.d;
 
       rows.push({
         date: dateRow,
@@ -722,12 +735,12 @@ const AdminController = {
     res.json({ days: rows });
   },
 
-  transferToUser(req, res) {
+  async transferToUser(req, res) {
     const { to_user_id, amount, description } = req.body;
     if (!to_user_id || !amount || parseFloat(amount) <= 0) {
       return res.status(400).json({ error: 'to_user_id and positive amount are required' });
     }
-    const target = UserModel.findById(parseInt(to_user_id));
+    const target = await UserModel.findById(parseInt(to_user_id));
     if (!target) return res.status(404).json({ error: 'Target user not found' });
     if (target.id === req.user.id) {
       return res.status(400).json({ error: 'Cannot transfer to yourself' });
@@ -738,19 +751,19 @@ const AdminController = {
 
     const amt = parseFloat(amount);
     try {
-      const txn = db.transaction(() => {
-        WalletModel.debit(req.user.id, amt, 'wallet_transfer', target.id, description || `Transfer to ${target.name}`);
-        WalletModel.credit(target.id, amt, 'wallet_transfer', req.user.id, description || `Transfer from admin`);
+      const txn = db.transaction(async () => {
+        await WalletModel.debit(req.user.id, amt, 'wallet_transfer', target.id, description || `Transfer to ${target.name}`);
+        await WalletModel.credit(target.id, amt, 'wallet_transfer', req.user.id, description || `Transfer from admin`);
       });
-      txn();
-      const adminWallet = WalletModel.getByUserId(req.user.id);
+      await txn();
+      const adminWallet = await WalletModel.getByUserId(req.user.id);
       res.json({ message: 'Transfer successful', balance: adminWallet ? adminWallet.balance : 0 });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
   },
 
-  getWalletTransactions(req, res) {
+  async getWalletTransactions(req, res) {
     const { page = 1, limit = 20, type, user_id } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     let where = 'WHERE 1=1';
@@ -758,16 +771,16 @@ const AdminController = {
     if (type) { where += ' AND wt.type = ?'; params.push(type); }
     if (user_id) { where += ' AND wt.user_id = ?'; params.push(parseInt(user_id)); }
 
-    const transactions = db.prepare(`
+    const transactions = await db.prepare(`
       SELECT wt.*, u.name as user_name, u.phone as user_phone, u.role as user_role
       FROM wallet_transactions wt JOIN users u ON wt.user_id = u.id
       ${where} ORDER BY wt.id DESC LIMIT ? OFFSET ?
     `).all(...params, parseInt(limit), offset);
-    const total = db.prepare(`SELECT COUNT(*) as count FROM wallet_transactions wt ${where}`).get(...params).count;
-    res.json({ transactions, total, page: parseInt(page), limit: parseInt(limit) });
+    const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM wallet_transactions wt ${where}`).get(...params);
+    res.json({ transactions, total: totalRow.count, page: parseInt(page), limit: parseInt(limit) });
   },
 
-  platformFees(req, res) {
+  async platformFees(req, res) {
     // Slice 3: this endpoint now reads from commission_splits (the new
     // 0.25% / 0.5% override model). The legacy `platform_fees` table is
     // kept for historical top-up fee data and is no longer written by the
@@ -775,11 +788,11 @@ const AdminController = {
     // user only changed retailer commission economics — top-up fees are
     // a separate revenue line.
     const { page = 1, limit = 50, from, to } = req.query;
-    const list = CommissionSplitModel.list({ page: parseInt(page), limit: parseInt(limit), from, to });
-    const totals = CommissionSplitModel.totals();
-    const config = CommissionSplitModel.getSplitConfig();
+    const list = await CommissionSplitModel.list({ page: parseInt(page), limit: parseInt(limit), from, to });
+    const totals = await CommissionSplitModel.totals();
+    const config = await CommissionSplitModel.getSplitConfig();
     // Legacy top-up fee history (kept for the same page, separate section).
-    const topupTotals = PlatformFeeModel.totals();
+    const topupTotals = await PlatformFeeModel.totals();
     res.json({
       ...list,
       totals,

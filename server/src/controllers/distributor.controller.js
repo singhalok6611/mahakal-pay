@@ -10,14 +10,14 @@ const notify = require('../services/notify.service');
 const db = require('../config/db');
 
 const DistributorController = {
-  dashboard(req, res) {
-    const rechargeStats = TransactionModel.getTodayStats({ field: 'parent_id', value: req.user.id });
-    const retailers = UserModel.listByParent(req.user.id, 1, 1000);
-    const wallet = WalletModel.getByUserId(req.user.id);
+  async dashboard(req, res) {
+    const rechargeStats = await TransactionModel.getTodayStats({ field: 'parent_id', value: req.user.id });
+    const retailers = await UserModel.listByParent(req.user.id, 1, 1000);
+    const wallet = await WalletModel.getByUserId(req.user.id);
 
     let retailerBalance = 0;
     for (const r of retailers.users) {
-      const w = WalletModel.getByUserId(r.id);
+      const w = await WalletModel.getByUserId(r.id);
       if (w) retailerBalance += w.balance;
     }
 
@@ -33,20 +33,22 @@ const DistributorController = {
     });
   },
 
-  listRetailers(req, res) {
+  async listRetailers(req, res) {
     const { page = 1, limit = 20 } = req.query;
-    const result = UserModel.listByParent(req.user.id, parseInt(page), parseInt(limit));
+    const result = await UserModel.listByParent(req.user.id, parseInt(page), parseInt(limit));
 
     // Add wallet balance for each retailer
-    result.users = result.users.map(user => {
-      const wallet = WalletModel.getByUserId(user.id);
-      return { ...user, balance: wallet ? wallet.balance : 0 };
-    });
+    const withBalances = [];
+    for (const user of result.users) {
+      const wallet = await WalletModel.getByUserId(user.id);
+      withBalances.push({ ...user, balance: wallet ? wallet.balance : 0 });
+    }
+    result.users = withBalances;
 
     res.json(result);
   },
 
-  createRetailer(req, res) {
+  async createRetailer(req, res) {
     const { name, email, phone, password, pan, shop_name, address, city, state, pincode } = req.body;
 
     if (!name || !email || !phone || !password || !pan) {
@@ -58,18 +60,18 @@ const DistributorController = {
       return res.status(400).json({ error: 'PAN must be in format ABCDE1234F (5 letters, 4 digits, 1 letter)' });
     }
 
-    if (UserModel.findByEmail(email)) {
+    if (await UserModel.findByEmail(email)) {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    if (UserModel.findByPhone(phone)) {
+    if (await UserModel.findByPhone(phone)) {
       return res.status(400).json({ error: 'Phone already exists' });
     }
-    if (UserModel.findByPan(normalizedPan)) {
+    if (await UserModel.findByPan(normalizedPan)) {
       return res.status(400).json({ error: 'PAN already registered to another account' });
     }
 
     const password_hash = bcrypt.hashSync(password, 10);
-    const user = UserModel.create({
+    const user = await UserModel.create({
       parent_id: req.user.id,
       role: 'retailer',
       name, email, phone, pan: normalizedPan, password_hash,
@@ -89,30 +91,30 @@ const DistributorController = {
     });
   },
 
-  updateRetailer(req, res) {
+  async updateRetailer(req, res) {
     const { id } = req.params;
-    const user = UserModel.findById(parseInt(id));
+    const user = await UserModel.findById(parseInt(id));
 
     if (!user || user.parent_id !== req.user.id) {
       return res.status(404).json({ error: 'Retailer not found' });
     }
 
-    const updated = UserModel.update(parseInt(id), req.body);
+    const updated = await UserModel.update(parseInt(id), req.body);
     res.json({ message: 'Retailer updated', user: updated });
   },
 
-  getTransactions(req, res) {
+  async getTransactions(req, res) {
     const { page = 1, limit = 20, status } = req.query;
-    const result = TransactionModel.listByParentUser(req.user.id, parseInt(page), parseInt(limit), { status });
+    const result = await TransactionModel.listByParentUser(req.user.id, parseInt(page), parseInt(limit), { status });
     res.json(result);
   },
 
   // Slice 6: detailed feed scoped to this distributor's downstream retailers.
   // Strips admin_share_* per the visibility rule — a distributor must never
   // see what the admin earns off their downline.
-  getDetailedTransactions(req, res) {
+  async getDetailedTransactions(req, res) {
     const { page = 1, limit = 20, status, service_type } = req.query;
-    const result = TransactionModel.listDetailed({
+    const result = await TransactionModel.listDetailed({
       scope: 'distributor',
       scopeUserId: req.user.id,
       page: parseInt(page),
@@ -127,20 +129,20 @@ const DistributorController = {
     });
   },
 
-  transferBalance(req, res) {
+  async transferBalance(req, res) {
     const { retailer_id, amount } = req.body;
     if (!retailer_id || !amount || amount <= 0) {
       return res.status(400).json({ error: 'Valid retailer ID and amount required' });
     }
 
-    const retailer = UserModel.findById(parseInt(retailer_id));
+    const retailer = await UserModel.findById(parseInt(retailer_id));
     if (!retailer || retailer.parent_id !== req.user.id) {
       return res.status(404).json({ error: 'Retailer not found' });
     }
 
     try {
-      WalletModel.debit(req.user.id, parseFloat(amount), 'fund_transfer', null, `Transfer to ${retailer.name}`);
-      WalletModel.credit(parseInt(retailer_id), parseFloat(amount), 'fund_transfer', null, `Transfer from distributor`);
+      await WalletModel.debit(req.user.id, parseFloat(amount), 'fund_transfer', null, `Transfer to ${retailer.name}`);
+      await WalletModel.credit(parseInt(retailer_id), parseFloat(amount), 'fund_transfer', null, `Transfer from distributor`);
 
       notify.walletTransfer({
         fromName: req.user.name, fromId: req.user.id,
@@ -148,7 +150,7 @@ const DistributorController = {
         amount: parseFloat(amount), direction: 'funded retailer',
       });
 
-      const wallet = WalletModel.getByUserId(req.user.id);
+      const wallet = await WalletModel.getByUserId(req.user.id);
       res.json({ message: 'Balance transferred', balance: wallet.balance });
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -156,15 +158,15 @@ const DistributorController = {
   },
   // ---------- Slice 4: withdrawals (own) ----------
 
-  createWithdrawal(req, res) {
+  async createWithdrawal(req, res) {
     const { error, payload } = validateWithdrawalPayload(req.body);
     if (error) return res.status(400).json({ error });
 
-    const wallet = WalletModel.getByUserId(req.user.id);
+    const wallet = await WalletModel.getByUserId(req.user.id);
     if (!wallet || wallet.balance < payload.amount) {
       return res.status(400).json({ error: 'Insufficient wallet balance' });
     }
-    const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
+    const w = await WithdrawalModel.create({ user_id: req.user.id, ...payload });
     notify.withdrawalCreated({
       userName: req.user.name, userId: req.user.id, userEmail: req.user.email,
       withdrawalId: w.id, amount: payload.amount, method: payload.method,
@@ -172,20 +174,20 @@ const DistributorController = {
     res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });
   },
 
-  listWithdrawals(req, res) {
+  async listWithdrawals(req, res) {
     const { page = 1, limit = 20 } = req.query;
-    const result = WithdrawalModel.listByUser(req.user.id, { page: parseInt(page), limit: parseInt(limit) });
+    const result = await WithdrawalModel.listByUser(req.user.id, { page: parseInt(page), limit: parseInt(limit) });
     res.json(result);
   },
 
-  createSupportTicket(req, res) {
+  async createSupportTicket(req, res) {
     const { subject, message } = req.body;
 
     if (!subject || !message) {
       return res.status(400).json({ error: 'Subject and message are required' });
     }
 
-    db.prepare('INSERT INTO support_tickets (user_id, subject, message) VALUES (?, ?, ?)')
+    await db.prepare('INSERT INTO support_tickets (user_id, subject, message) VALUES (?, ?, ?)')
       .run(req.user.id, subject, message);
 
     res.status(201).json({ message: 'Support ticket created' });

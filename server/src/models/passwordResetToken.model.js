@@ -32,11 +32,11 @@ const PasswordResetTokenModel = {
    * the raw token must be included in the email link, never logged or
    * persisted in plain text.
    */
-  create({ userId, ipAddress, userAgent }) {
+  async create({ userId, ipAddress, userAgent }) {
     const rawToken = newRawToken();
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + TOKEN_TTL_MINUTES * 60 * 1000);
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO password_reset_tokens (user_id, token_hash, expires_at, ip_address, user_agent)
       VALUES (?, ?, ?, ?, ?)
     `).run(userId, tokenHash, expiresAt.toISOString(), ipAddress || null, userAgent || null);
@@ -48,9 +48,9 @@ const PasswordResetTokenModel = {
    * unused tokens and bcrypt-compares each — same trick refreshToken.model
    * uses since we can't index on a hash.
    */
-  findValidByRawToken(rawToken) {
+  async findValidByRawToken(rawToken) {
     if (!rawToken || typeof rawToken !== 'string') return null;
-    const candidates = db.prepare(`
+    const candidates = await db.prepare(`
       SELECT * FROM password_reset_tokens
       WHERE used_at IS NULL AND expires_at > CURRENT_TIMESTAMP
       ORDER BY id DESC
@@ -64,14 +64,14 @@ const PasswordResetTokenModel = {
     return null;
   },
 
-  markUsed(id) {
-    db.prepare('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
+  async markUsed(id) {
+    await db.prepare('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?').run(id);
   },
 
   // Invalidate every outstanding reset token for a user (used after a
   // successful password change so an old link can never be replayed).
-  invalidateAllForUser(userId) {
-    db.prepare(`
+  async invalidateAllForUser(userId) {
+    await db.prepare(`
       UPDATE password_reset_tokens
       SET used_at = CURRENT_TIMESTAMP
       WHERE user_id = ? AND used_at IS NULL

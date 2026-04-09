@@ -41,9 +41,9 @@ const ADMIN_USER_ID = parseInt(process.env.PLATFORM_ADMIN_ID || '1', 10);
 const DEFAULT_DISTRIBUTOR_PCT = parseFloat(process.env.DISTRIBUTOR_SHARE_PCT || '0.25');
 const DEFAULT_ADMIN_PCT = parseFloat(process.env.ADMIN_SHARE_PCT || '0.5');
 
-function readSettingPct(key, fallback) {
+async function readSettingPct(key, fallback) {
   try {
-    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+    const row = await db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
     if (row && row.value !== undefined && row.value !== null && row.value !== '') {
       const n = parseFloat(row.value);
       if (!Number.isNaN(n)) return n;
@@ -52,10 +52,10 @@ function readSettingPct(key, fallback) {
   return fallback;
 }
 
-function getSplitConfig() {
+async function getSplitConfig() {
   return {
-    distributor_share_pct: readSettingPct('distributor_share_pct', DEFAULT_DISTRIBUTOR_PCT),
-    admin_share_pct: readSettingPct('admin_share_pct', DEFAULT_ADMIN_PCT),
+    distributor_share_pct: await readSettingPct('distributor_share_pct', DEFAULT_DISTRIBUTOR_PCT),
+    admin_share_pct: await readSettingPct('admin_share_pct', DEFAULT_ADMIN_PCT),
   };
 }
 
@@ -103,7 +103,7 @@ const CommissionSplitModel = {
    *                     retailerEffectivePct, distributorEffectivePct,
    *                     adminEffectivePct, splitId }
    */
-  apply({ transactionId, retailerUserId, rechargeAmount, operatorCommissionPct }) {
+  async apply({ transactionId, retailerUserId, rechargeAmount, operatorCommissionPct }) {
     if (!transactionId || !retailerUserId) {
       throw new Error('CommissionSplit.apply requires transactionId + retailerUserId');
     }
@@ -112,7 +112,7 @@ const CommissionSplitModel = {
       throw new Error('CommissionSplit.apply requires a positive rechargeAmount');
     }
 
-    const { distributor_share_pct, admin_share_pct } = getSplitConfig();
+    const { distributor_share_pct, admin_share_pct } = await getSplitConfig();
     const { adminEffectivePct, distributorEffectivePct, retailerEffectivePct } =
       computeSplitPcts({
         operatorPct: operatorCommissionPct,
@@ -124,15 +124,15 @@ const CommissionSplitModel = {
     const distributorAmount = round2((amount * distributorEffectivePct) / 100);
     const retailerAmount = round2((amount * retailerEffectivePct) / 100);
 
-    const retailer = db.prepare('SELECT id, parent_id, name FROM users WHERE id = ?').get(retailerUserId);
+    const retailer = await db.prepare('SELECT id, parent_id, name FROM users WHERE id = ?').get(retailerUserId);
     if (!retailer) throw new Error('Retailer not found');
     const distributorUserId = retailer.parent_id; // may be null in odd test data
 
     // Wallet credits + audit row — wrapped in a single DB transaction so
     // either everything lands or nothing does.
-    const txn = db.transaction(() => {
+    const txn = db.transaction(async () => {
       if (retailerAmount > 0) {
-        WalletModel.credit(
+        await WalletModel.credit(
           retailerUserId,
           retailerAmount,
           'commission',
@@ -142,9 +142,9 @@ const CommissionSplitModel = {
       }
 
       if (distributorUserId && distributorAmount > 0) {
-        const distWallet = WalletModel.getByUserId(distributorUserId);
+        const distWallet = await WalletModel.getByUserId(distributorUserId);
         if (distWallet) {
-          WalletModel.credit(
+          await WalletModel.credit(
             distributorUserId,
             distributorAmount,
             'commission_override',
@@ -155,9 +155,9 @@ const CommissionSplitModel = {
       }
 
       if (adminAmount > 0 && ADMIN_USER_ID !== retailerUserId) {
-        const adminWallet = WalletModel.getByUserId(ADMIN_USER_ID);
+        const adminWallet = await WalletModel.getByUserId(ADMIN_USER_ID);
         if (adminWallet) {
-          WalletModel.credit(
+          await WalletModel.credit(
             ADMIN_USER_ID,
             adminAmount,
             'commission_override',
@@ -167,7 +167,7 @@ const CommissionSplitModel = {
         }
       }
 
-      const result = db.prepare(`
+      const result = await db.prepare(`
         INSERT INTO commission_splits (
           transaction_id, retailer_user_id, retailer_commission_amount,
           distributor_user_id, distributor_share_pct, distributor_share_amount,
@@ -181,7 +181,7 @@ const CommissionSplitModel = {
       return result.lastInsertRowid;
     });
 
-    const splitId = txn();
+    const splitId = await txn();
     return {
       retailerAmount, distributorAmount, adminAmount,
       retailerEffectivePct, distributorEffectivePct, adminEffectivePct,
@@ -192,21 +192,21 @@ const CommissionSplitModel = {
   /**
    * Look up the split row for a given transaction (slice 6 will use this).
    */
-  findByTransactionId(transactionId) {
+  async findByTransactionId(transactionId) {
     return db.prepare('SELECT * FROM commission_splits WHERE transaction_id = ?').get(transactionId);
   },
 
   /**
    * Admin earnings list — page through commission_splits joined with users.
    */
-  list({ page = 1, limit = 50, from, to } = {}) {
+  async list({ page = 1, limit = 50, from, to } = {}) {
     const offset = (page - 1) * limit;
     let where = 'WHERE 1=1';
     const params = [];
     if (from) { where += ' AND DATE(cs.created_at) >= ?'; params.push(from); }
     if (to)   { where += ' AND DATE(cs.created_at) <= ?'; params.push(to); }
 
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT cs.*,
              r.name AS retailer_name,
              d.name AS distributor_name,
@@ -224,8 +224,8 @@ const CommissionSplitModel = {
       LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
 
-    const total = db.prepare(`SELECT COUNT(*) as c FROM commission_splits cs ${where}`).get(...params).c;
-    const sum = db.prepare(`
+    const totalRow = await db.prepare(`SELECT COUNT(*) as c FROM commission_splits cs ${where}`).get(...params);
+    const sum = await db.prepare(`
       SELECT
         COALESCE(SUM(distributor_share_amount), 0) as distributor_total,
         COALESCE(SUM(admin_share_amount), 0) as admin_total,
@@ -233,13 +233,13 @@ const CommissionSplitModel = {
       FROM commission_splits cs ${where}
     `).get(...params);
 
-    return { rows, total, sum, page, limit };
+    return { rows, total: totalRow.c, sum, page, limit };
   },
 
   /**
    * Admin dashboard rollups — admin's own earnings over time windows.
    */
-  totals() {
+  async totals() {
     return db.prepare(`
       SELECT
         COALESCE(SUM(admin_share_amount), 0) as admin_total_lifetime,

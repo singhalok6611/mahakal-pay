@@ -15,8 +15,8 @@ const db = require('../config/db');
 const WalletModel = require('./wallet.model');
 
 const WithdrawalModel = {
-  create({ user_id, amount, method, bank_account_name, bank_account_number, bank_ifsc, bank_name, upi_id }) {
-    const result = db.prepare(`
+  async create({ user_id, amount, method, bank_account_name, bank_account_number, bank_ifsc, bank_name, upi_id }) {
+    const result = await db.prepare(`
       INSERT INTO withdrawal_requests (
         user_id, amount, method,
         bank_account_name, bank_account_number, bank_ifsc, bank_name,
@@ -30,14 +30,14 @@ const WithdrawalModel = {
     return this.findById(result.lastInsertRowid);
   },
 
-  findById(id) {
+  async findById(id) {
     return db.prepare('SELECT * FROM withdrawal_requests WHERE id = ?').get(id);
   },
 
   /**
    * List withdrawals — admin view (joined with user name for the queue).
    */
-  listAll({ status, page = 1, limit = 20 } = {}) {
+  async listAll({ status, page = 1, limit = 20 } = {}) {
     const offset = (page - 1) * limit;
     let where = 'WHERE 1=1';
     const params = [];
@@ -45,7 +45,7 @@ const WithdrawalModel = {
       where += ' AND w.status = ?';
       params.push(status);
     }
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT w.*, u.name as user_name, u.phone as user_phone, u.role as user_role
       FROM withdrawal_requests w
       JOIN users u ON u.id = w.user_id
@@ -53,23 +53,23 @@ const WithdrawalModel = {
       ORDER BY w.id DESC
       LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
-    const total = db.prepare(`SELECT COUNT(*) as c FROM withdrawal_requests w ${where}`).get(...params).c;
-    return { rows, total, page, limit };
+    const totalRow = await db.prepare(`SELECT COUNT(*) as c FROM withdrawal_requests w ${where}`).get(...params);
+    return { rows, total: totalRow.c, page, limit };
   },
 
   /**
    * List withdrawals owned by a single user (their own history).
    */
-  listByUser(user_id, { page = 1, limit = 20 } = {}) {
+  async listByUser(user_id, { page = 1, limit = 20 } = {}) {
     const offset = (page - 1) * limit;
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT * FROM withdrawal_requests
       WHERE user_id = ?
       ORDER BY id DESC
       LIMIT ? OFFSET ?
     `).all(user_id, limit, offset);
-    const total = db.prepare('SELECT COUNT(*) as c FROM withdrawal_requests WHERE user_id = ?').get(user_id).c;
-    return { rows, total, page, limit };
+    const totalRow = await db.prepare('SELECT COUNT(*) as c FROM withdrawal_requests WHERE user_id = ?').get(user_id);
+    return { rows, total: totalRow.c, page, limit };
   },
 
   /**
@@ -77,20 +77,20 @@ const WithdrawalModel = {
    * stamp processed_by + processed_at. All in one DB transaction so
    * either everything happens or nothing does.
    */
-  approve(id, adminUserId, remarks) {
-    const w = this.findById(id);
+  async approve(id, adminUserId, remarks) {
+    const w = await this.findById(id);
     if (!w) throw new Error('Withdrawal not found');
     if (w.status !== 'pending') throw new Error(`Cannot approve a ${w.status} withdrawal`);
 
-    const wallet = WalletModel.getByUserId(w.user_id);
+    const wallet = await WalletModel.getByUserId(w.user_id);
     if (!wallet) throw new Error('User wallet not found');
     if (wallet.balance < w.amount) {
       throw new Error(`Insufficient wallet balance (₹${wallet.balance.toFixed(2)} < ₹${w.amount.toFixed(2)})`);
     }
 
-    const txn = db.transaction(() => {
+    const txn = db.transaction(async () => {
       // 1. Debit user wallet
-      WalletModel.debit(
+      await WalletModel.debit(
         w.user_id,
         w.amount,
         'withdrawal',
@@ -98,7 +98,7 @@ const WithdrawalModel = {
         `Withdrawal #${id} ${w.method === 'bank' ? `to ${w.bank_name || ''} ${w.bank_account_number || ''}`.trim() : `to UPI ${w.upi_id || ''}`}`
       );
       // 2. Flip status to processed
-      db.prepare(`
+      await db.prepare(`
         UPDATE withdrawal_requests
         SET status = 'processed',
             admin_remarks = ?,
@@ -108,16 +108,16 @@ const WithdrawalModel = {
         WHERE id = ?
       `).run(remarks || null, adminUserId, id);
     });
-    txn();
+    await txn();
     return this.findById(id);
   },
 
-  reject(id, adminUserId, remarks) {
-    const w = this.findById(id);
+  async reject(id, adminUserId, remarks) {
+    const w = await this.findById(id);
     if (!w) throw new Error('Withdrawal not found');
     if (w.status !== 'pending') throw new Error(`Cannot reject a ${w.status} withdrawal`);
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE withdrawal_requests
       SET status = 'rejected',
           admin_remarks = ?,

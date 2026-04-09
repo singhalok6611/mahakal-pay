@@ -11,46 +11,47 @@
 const db = require('../config/db');
 
 const NotificationModel = {
-  create({ user_id, type, title, message, reference_type, reference_id }) {
-    const result = db.prepare(`
+  async create({ user_id, type, title, message, reference_type, reference_id }) {
+    const result = await db.prepare(`
       INSERT INTO notifications (user_id, type, title, message, reference_type, reference_id)
       VALUES (?, ?, ?, ?, ?, ?)
     `).run(user_id, type, title, message, reference_type || null, reference_id || null);
     return this.findById(result.lastInsertRowid);
   },
 
-  findById(id) {
+  async findById(id) {
     return db.prepare('SELECT * FROM notifications WHERE id = ?').get(id);
   },
 
-  listByUser(user_id, { page = 1, limit = 50, unreadOnly = false } = {}) {
+  async listByUser(user_id, { page = 1, limit = 50, unreadOnly = false } = {}) {
     const offset = (page - 1) * limit;
     let where = 'WHERE user_id = ?';
     const params = [user_id];
     if (unreadOnly) where += ' AND is_read = 0';
 
-    const rows = db.prepare(`
+    const rows = await db.prepare(`
       SELECT * FROM notifications
       ${where}
       ORDER BY id DESC
       LIMIT ? OFFSET ?
     `).all(...params, limit, offset);
-    const total = db.prepare(`SELECT COUNT(*) as c FROM notifications ${where}`).get(...params).c;
-    const unread = db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0').get(user_id).c;
-    return { rows, total, unread, page, limit };
+    const totalRow = await db.prepare(`SELECT COUNT(*) as c FROM notifications ${where}`).get(...params);
+    const unreadRow = await db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0').get(user_id);
+    return { rows, total: totalRow.c, unread: unreadRow.c, page, limit };
   },
 
-  countUnread(user_id) {
-    return db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0').get(user_id).c;
+  async countUnread(user_id) {
+    const row = await db.prepare('SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND is_read = 0').get(user_id);
+    return row.c;
   },
 
-  markRead(id, user_id) {
-    db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(id, user_id);
+  async markRead(id, user_id) {
+    await db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?').run(id, user_id);
     return this.findById(id);
   },
 
-  markAllRead(user_id) {
-    const r = db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0').run(user_id);
+  async markAllRead(user_id) {
+    const r = await db.prepare('UPDATE notifications SET is_read = 1 WHERE user_id = ? AND is_read = 0').run(user_id);
     return { changed: r.changes };
   },
 };

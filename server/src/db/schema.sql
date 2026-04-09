@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS platform_fees (
 CREATE INDEX IF NOT EXISTS idx_platform_fees_user ON platform_fees(user_id);
 CREATE INDEX IF NOT EXISTS idx_platform_fees_date ON platform_fees(created_at);
 
--- Cyrus / external recharge API logs
+-- Recharge API logs (Pay2All requests/responses for debugging + audit)
 CREATE TABLE IF NOT EXISTS recharge_api_logs (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_id  INTEGER REFERENCES transactions(id),

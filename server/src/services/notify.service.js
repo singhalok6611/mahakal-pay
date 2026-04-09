@@ -21,19 +21,24 @@ const db = require('../config/db');
 const ADMIN_USER_ID = parseInt(process.env.PLATFORM_ADMIN_ID || '1', 10);
 const APP_URL = (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
 
+// Fire-and-forget: dispatches fn as a microtask, supports async fns,
+// catches any thrown error or rejected Promise so a notification failure
+// can never break the underlying business operation.
 function safeFire(fn) {
-  try { fn(); } catch (err) {
-    console.error('[notify] fire failed:', err.message);
-  }
+  Promise.resolve()
+    .then(fn)
+    .catch((err) => {
+      console.error('[notify] fire failed:', err && err.message);
+    });
 }
 
 // Best-effort: get the admin's email so we can send them mail too.
 // Cached for the life of the process — admin email rarely changes.
 let _cachedAdminEmail = null;
-function getAdminEmail() {
+async function getAdminEmail() {
   if (_cachedAdminEmail) return _cachedAdminEmail;
   try {
-    const row = db.prepare('SELECT email FROM users WHERE id = ?').get(ADMIN_USER_ID);
+    const row = await db.prepare('SELECT email FROM users WHERE id = ?').get(ADMIN_USER_ID);
     if (row && row.email) _cachedAdminEmail = row.email;
   } catch {}
   return _cachedAdminEmail;
@@ -113,8 +118,8 @@ const notify = {
   // Retailer created by distributor — notify admin to approve
   // ─────────────────────────────────────────────────────────────
   retailerPendingApproval({ retailer, distributor }) {
-    safeFire(() => {
-      NotificationModel.create({
+    safeFire(async () => {
+      await NotificationModel.create({
         user_id: ADMIN_USER_ID,
         type: 'retailer_pending',
         title: `New retailer pending approval: ${retailer.name}`,
@@ -122,7 +127,7 @@ const notify = {
         reference_type: 'user',
         reference_id: retailer.id,
       });
-      const adminEmail = getAdminEmail();
+      const adminEmail = await getAdminEmail();
       if (adminEmail) {
         const subject = `New retailer pending approval: ${retailer.name}`;
         const html = emailShell(
@@ -183,9 +188,9 @@ const notify = {
   // emailed if we want, but routine successes shouldn't be)
   // ─────────────────────────────────────────────────────────────
   recharge({ retailerName, retailerId, txnId, amount, status, service, operator, subscriberId }) {
-    safeFire(() => {
+    safeFire(async () => {
       const ok = status === 'success';
-      NotificationModel.create({
+      await NotificationModel.create({
         user_id: ADMIN_USER_ID,
         type: ok ? 'recharge_success' : 'recharge_failed',
         title: ok ? `Recharge ₹${amount} ${service}` : `Failed recharge ₹${amount} ${service}`,
@@ -198,8 +203,8 @@ const notify = {
 
   // Wallet → wallet transfer — admin in-app notification
   walletTransfer({ fromName, fromId, toName, toId, amount, direction }) {
-    safeFire(() => {
-      NotificationModel.create({
+    safeFire(async () => {
+      await NotificationModel.create({
         user_id: ADMIN_USER_ID,
         type: 'wallet_transfer',
         title: `Wallet transfer ₹${amount}`,
@@ -214,8 +219,8 @@ const notify = {
   // Withdrawal request created — admin gets in-app + email
   // ─────────────────────────────────────────────────────────────
   withdrawalCreated({ userName, userId, userEmail, withdrawalId, amount, method }) {
-    safeFire(() => {
-      NotificationModel.create({
+    safeFire(async () => {
+      await NotificationModel.create({
         user_id: ADMIN_USER_ID,
         type: 'withdrawal_request',
         title: `Withdrawal request ₹${amount}`,
@@ -223,7 +228,7 @@ const notify = {
         reference_type: 'withdrawal',
         reference_id: withdrawalId,
       });
-      const adminEmail = getAdminEmail();
+      const adminEmail = await getAdminEmail();
       if (adminEmail) {
         const subject = `Withdrawal request ₹${amount} from ${userName}`;
         const html = emailShell(
@@ -287,16 +292,16 @@ const notify = {
   // Debounced via settings (one per 6 hours).
   // ─────────────────────────────────────────────────────────────
   lowFloat({ pay2allBalance, internalTotal, coveragePct, deltaInr }) {
-    safeFire(() => {
-      const last = db.prepare("SELECT value FROM settings WHERE key = 'last_low_float_alert_at'").get();
+    safeFire(async () => {
+      const last = await db.prepare("SELECT value FROM settings WHERE key = 'last_low_float_alert_at'").get();
       const now = Date.now();
       if (last && last.value && (now - parseInt(last.value, 10)) < 6 * 60 * 60 * 1000) {
         return; // debounced
       }
-      db.prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_low_float_alert_at', ?, CURRENT_TIMESTAMP)")
+      await db.prepare("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('last_low_float_alert_at', ?, CURRENT_TIMESTAMP)")
         .run(String(now));
 
-      NotificationModel.create({
+      await NotificationModel.create({
         user_id: ADMIN_USER_ID,
         type: 'low_float',
         title: `LOW FLOAT — Pay2All ₹${pay2allBalance}`,
@@ -308,7 +313,7 @@ const notify = {
         reference_id: null,
       });
 
-      const adminEmail = getAdminEmail();
+      const adminEmail = await getAdminEmail();
       if (adminEmail) {
         const subject = `🔴 LOW FLOAT — Pay2All master only ${fmt(pay2allBalance)}`;
         const html = emailShell(
@@ -334,8 +339,8 @@ const notify = {
   // gets an email so they know what happened
   // ─────────────────────────────────────────────────────────────
   suspension({ user, sweptAmount }) {
-    safeFire(() => {
-      NotificationModel.create({
+    safeFire(async () => {
+      await NotificationModel.create({
         user_id: ADMIN_USER_ID,
         type: 'user_suspended',
         title: `Suspended ${user.role} ${user.name}`,
