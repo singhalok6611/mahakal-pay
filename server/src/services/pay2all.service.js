@@ -125,10 +125,31 @@ async function getJson(url, headers = {}) {
 }
 
 /**
- * Fetch a fresh access token. We do NOT cache — every recharge gets
- * its own token. See the file header for why.
+ * Fetch a Pay2All access token, with a short in-memory cache.
+ *
+ * Originally this was un-cached — every API call paid the cost of a
+ * fresh /api/token round trip (~400ms) on top of its own work, which
+ * doubled the latency of every recharge / balance check / deposit info.
+ *
+ * Pay2All tokens are valid for at least ~30 minutes; we cache for 8
+ * minutes to leave a comfortable buffer. If Pay2All rejects the cached
+ * token (401), `invalidateToken()` clears the cache and the next call
+ * will re-auth from scratch.
+ *
+ * On Vercel each cold start gets a fresh empty cache, which is fine
+ * (the very first request after cold start pays the auth cost once).
  */
+let _tokenCache = null; // { token, expiresAt }
+const TOKEN_TTL_MS = 8 * 60 * 1000;
+
+function invalidateToken() {
+  _tokenCache = null;
+}
+
 async function fetchToken() {
+  if (_tokenCache && _tokenCache.expiresAt > Date.now()) {
+    return _tokenCache.token;
+  }
   const { status, body } = await postForm(`${BASE}/api/token`, {
     email: EMAIL,
     password: PASSWORD,
@@ -138,6 +159,7 @@ async function fetchToken() {
     const msg = (body && body.message) || `Pay2All token endpoint returned ${status}`;
     throw new Error(`Pay2All auth failed: ${msg}`);
   }
+  _tokenCache = { token: body.token, expiresAt: Date.now() + TOKEN_TTL_MS };
   return body.token;
 }
 
@@ -287,17 +309,31 @@ const Pay2AllService = {
   /**
    * Master wallet balance (the API partner's Pay2All balance).
    * Useful for the admin dashboard so they can see when to top up.
+   *
+   * Always live — never cached. The token used to authenticate IS
+   * cached (see fetchToken), so most calls only pay one round trip.
+   * If the cached token is rejected (401 / invalid response shape),
+   * we evict it and retry once with a fresh token.
    */
   async checkBalance() {
     if (!isLive()) {
       return { balance: null, message: 'MOCK mode — set PAY2ALL_EMAIL/PASSWORD/ACCOUNT_MOBILE to go live' };
     }
-    try {
+    const fetchOnce = async () => {
       const token = await fetchToken();
-      const { body } = await getJson(`${BASE}/api/user`, {
+      const { status, body } = await getJson(`${BASE}/api/user`, {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
       });
+      return { status, body };
+    };
+    try {
+      let { status, body } = await fetchOnce();
+      if (status === 401) {
+        // Cached token was rejected — evict and retry once.
+        invalidateToken();
+        ({ status, body } = await fetchOnce());
+      }
       const balance = body?.data?.balance?.user_balance;
       return { balance: balance ?? null, raw: body };
     } catch (err) {

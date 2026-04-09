@@ -750,16 +750,20 @@ const AdminController = {
   // hold ledger credit that the platform can't actually deliver on.
 
   async floatStatus(req, res) {
-    const balanceResult = await Pay2AllService.checkBalance();
+    // The Pay2All call dominates this endpoint (~400-1000ms depending on
+    // their backend mood). Run all three calls in parallel so the two
+    // cheap Turso queries don't add their latency on top.
+    const [balanceResult, sumRow, breakdown] = await Promise.all([
+      Pay2AllService.checkBalance(),
+      db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM wallets').get(),
+      db.prepare(`
+        SELECT u.role AS role, COALESCE(SUM(w.balance), 0) AS sum
+        FROM wallets w JOIN users u ON u.id = w.user_id
+        GROUP BY u.role
+      `).all(),
+    ]);
     const pay2allBalance = Number(balanceResult.balance ?? 0);
-
-    const sumRow = await db.prepare('SELECT COALESCE(SUM(balance), 0) AS s FROM wallets').get();
     const internalTotal = Number(sumRow.s || 0);
-    const breakdown = await db.prepare(`
-      SELECT u.role AS role, COALESCE(SUM(w.balance), 0) AS sum
-      FROM wallets w JOIN users u ON u.id = w.user_id
-      GROUP BY u.role
-    `).all();
 
     const delta = pay2allBalance - internalTotal;
     const coveragePct = internalTotal > 0
