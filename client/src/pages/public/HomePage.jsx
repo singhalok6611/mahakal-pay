@@ -1,161 +1,280 @@
 import { Link } from 'react-router-dom';
 import {
-  FiSmartphone, FiTruck, FiMonitor, FiShield, FiDollarSign, FiHeadphones,
-  FiArrowRight, FiZap, FiCreditCard, FiWifi, FiTv,
-  FiUsers, FiActivity, FiAward, FiClock,
+  FiSmartphone, FiTv, FiZap, FiArrowRight,
+  FiShield, FiActivity, FiCheckCircle,
+  FiUserPlus, FiCreditCard, FiRefreshCw, FiAward,
+  FiDroplet, FiUsers, FiClock,
 } from 'react-icons/fi';
+import { Reveal, CountUp } from '../../hooks/useScrollReveal';
 
-const features = [
-  { icon: FiSmartphone, title: 'Mobile Recharge', desc: 'Instant prepaid recharge for all operators across India from every circle.', color: 'linear-gradient(135deg,#ef4444,#f97316)' },
-  { icon: FiTruck,      title: 'FASTag Recharge', desc: 'Quick FASTag top-up for hassle-free toll payments on all highways.',         color: 'linear-gradient(135deg,#3b82f6,#0ea5e9)' },
-  { icon: FiMonitor,    title: 'DTH Recharge',    desc: 'Recharge your DTH connection for uninterrupted entertainment at home.',     color: 'linear-gradient(135deg,#10b981,#22c55e)' },
-  { icon: FiShield,     title: 'Bank-grade Security', desc: 'Every transaction is protected by JWT auth, refresh tokens and signed payloads.', color: 'linear-gradient(135deg,#8b5cf6,#a855f7)' },
-  { icon: FiDollarSign, title: 'Best Commission', desc: 'Industry-leading commission rates on every recharge — credited instantly to your wallet.', color: 'linear-gradient(135deg,#f59e0b,#eab308)' },
-  { icon: FiHeadphones, title: '24/7 Support',    desc: 'Round-the-clock support so your business never has to wait.',                color: 'linear-gradient(135deg,#06b6d4,#14b8a6)' },
+const whyChoose = [
+  {
+    icon: FiShield,
+    title: 'Bank-Grade Security',
+    desc: 'Every transaction is protected by JWT auth, signed payloads and refresh token rotation. Your wallet is never at risk.',
+    cls: '',
+  },
+  {
+    icon: FiActivity,
+    title: 'Fastest Transaction',
+    desc: 'Sub-5-second settlement on every recharge. The customer is in and out before they finish counting cash.',
+    cls: 'alt',
+  },
+  {
+    icon: FiCheckCircle,
+    title: 'Reliability',
+    desc: 'Multi-provider routing, automatic retries on operator timeouts and instant refunds on failed recharges.',
+    cls: 'alt2',
+  },
 ];
 
-const stats = [
-  { icon: FiUsers,    value: '10K+',   label: 'Active Retailers' },
-  { icon: FiActivity, value: '50K+',   label: 'Daily Transactions' },
-  { icon: FiAward,    value: '99.9%',  label: 'Uptime SLA' },
-  { icon: FiClock,    value: '< 5s',   label: 'Avg Settlement' },
+const services = [
+  { icon: FiSmartphone, title: 'Mobile Recharge' },
+  { icon: FiTv,         title: 'DTH Pay' },
+  { icon: FiZap,        title: 'Electricity Bill' },
+  { icon: FiDroplet,    title: 'Gas Bill' },
 ];
 
-const operators = [
-  'Airtel', 'Jio', 'Vi', 'BSNL', 'MTNL',
-  'Tata Play', 'Dish TV', 'Airtel Digital TV', 'Sun Direct', 'Videocon D2H',
-  'Paytm FASTag', 'ICICI FASTag', 'SBI FASTag', 'HDFC FASTag', 'Axis FASTag', 'Kotak FASTag',
+const steps = [
+  { icon: FiUserPlus,   title: 'Register',     desc: 'Sign up as a retailer through your distributor.' },
+  { icon: FiCreditCard, title: 'Add Money',    desc: 'Top up your wallet via UPI, NEFT or bank transfer.' },
+  { icon: FiRefreshCw,  title: 'Pay / Recharge', desc: 'Run mobile, DTH, FASTag and bill-pay from one screen.' },
+  { icon: FiAward,      title: 'Get Benefits', desc: 'Earn commission on every successful transaction.' },
+];
+
+const testimonials = [
+  {
+    quote: 'Mahakal Pay completely changed how I run my counter. The settlement is instant and the commission rates are the best I have seen.',
+    name: 'Rajesh Kumar',
+    role: 'Distributor, Mumbai',
+    initials: 'RK',
+    avatarCls: 'gold',
+  },
+  {
+    quote: 'I switched from another platform last year. The dashboard is clean, refunds are automatic, and the support team actually responds.',
+    name: 'Priya Singh',
+    role: 'Retailer, Pune',
+    initials: 'PS',
+    avatarCls: '',
+  },
+  {
+    quote: 'Daily volume tripled within three months of joining. The marketplace of operators they support is the widest in the industry.',
+    name: 'Amit Sharma',
+    role: 'Retailer, Mumbai',
+    initials: 'AS',
+    avatarCls: 'green',
+  },
 ];
 
 export default function HomePage() {
   return (
     <>
       {/* ──────────────── HERO ──────────────── */}
-      <section className="hero-modern">
+      <section className="hero-modern section-relative">
+        <div className="parallax-orbs">
+          <div className="orb o1" />
+          <div className="orb o2" />
+          <div className="orb o3" />
+        </div>
         <div className="container">
           <div className="row align-items-center">
             <div className="col-lg-7">
-              <div className="hero-eyebrow reveal">
+              <Reveal className="hero-eyebrow">
                 <span className="dot" />
-                LIVE · INSTANT · TRUSTED
-              </div>
-              <h1 className="hero-title reveal delay-1">
-                Recharge in seconds.<br />
-                Earn with every<br />
-                <span className="grad-gold">tap.</span>
-              </h1>
-              <p className="hero-subtitle reveal delay-2">
-                Mahakal Pay is the recharge &amp; bill-payment platform built for Indian retailers.
-                One wallet, every operator, instant settlement, best-in-class commission. Run your
-                whole counter from a single dashboard.
-              </p>
-              <div className="d-flex flex-wrap gap-3 reveal delay-3">
+                SIMPLE · POWERFUL · AFFORDABLE
+              </Reveal>
+              <Reveal as="h1" delay={1} className="hero-title">
+                Pay Bill or Recharge<br />
+                with <span className="grad-gold">MAHAKAL PAY</span><span className="caret">&nbsp;</span>
+              </Reveal>
+              <Reveal as="p" delay={2} className="hero-subtitle">
+                Fastest and most reliable recharge service platform.
+                Operate all your services from a single account.
+                Make your store profitable with one wallet, multiple services.
+              </Reveal>
+              <Reveal delay={3} className="d-flex flex-wrap gap-3">
                 <Link to="/login" className="btn btn-cta-glow d-inline-flex align-items-center gap-2">
                   Get Started <FiArrowRight />
                 </Link>
                 <Link to="/services" className="btn btn-ghost d-inline-flex align-items-center gap-2">
-                  Explore Services
+                  Our Services
                 </Link>
-              </div>
+              </Reveal>
             </div>
 
-            <div className="col-lg-5 d-none d-lg-flex justify-content-center reveal-fade delay-4">
-              <div className="hero-illu">
-                <div className="ring" />
-                <div className="ring r2" />
-                <div className="core">
-                  <FiZap size={70} color="#1a237e" />
+            <div className="col-lg-5 d-none d-lg-flex justify-content-center">
+              <Reveal from="right" delay={2}>
+                <div className="phone-frame">
+                  <FiSmartphone size={110} color="#ffc107" strokeWidth={1.5} />
                 </div>
-                <div className="chip c1"><FiSmartphone size={26} /></div>
-                <div className="chip c2"><FiTv         size={26} /></div>
-                <div className="chip c3"><FiCreditCard size={26} /></div>
-                <div className="chip c4"><FiWifi       size={26} /></div>
-              </div>
+              </Reveal>
             </div>
           </div>
         </div>
+
+        {/* wave divider into the next section */}
+        <svg className="wave-divider" viewBox="0 0 1440 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+          <path
+            fill="#ffffff"
+            d="M0,64 C320,128 720,0 1080,48 C1260,72 1380,96 1440,80 L1440,120 L0,120 Z"
+          />
+        </svg>
       </section>
 
-      {/* ──────────────── STATS STRIP ──────────────── */}
-      <section className="stats-strip">
+      {/* ──────────────── ANIMATED COUNTERS STRIP ──────────────── */}
+      <section className="py-5" style={{ background: '#ffffff' }}>
         <div className="container">
-          <div className="row g-3">
-            {stats.map((s, i) => (
-              <div className="col-6 col-md-3" key={s.label}>
-                <div className={`stats-card reveal delay-${i + 1}`}>
-                  <s.icon size={28} className="text-primary mb-2" />
-                  <div className="stat-value">{s.value}</div>
-                  <div className="stat-label">{s.label}</div>
-                </div>
-              </div>
-            ))}
+          <div className="row g-4 text-center">
+            <Reveal delay={1} className="col-6 col-md-3">
+              <FiUsers size={30} className="mb-2" style={{ color: '#8b5cf6' }} />
+              <div className="stat-value-cinematic"><CountUp target={10000} suffix="+" /></div>
+              <div className="stat-label">Active Retailers</div>
+            </Reveal>
+            <Reveal delay={2} className="col-6 col-md-3">
+              <FiActivity size={30} className="mb-2" style={{ color: '#8b5cf6' }} />
+              <div className="stat-value-cinematic"><CountUp target={50000} suffix="+" /></div>
+              <div className="stat-label">Daily Transactions</div>
+            </Reveal>
+            <Reveal delay={3} className="col-6 col-md-3">
+              <FiAward size={30} className="mb-2" style={{ color: '#8b5cf6' }} />
+              <div className="stat-value-cinematic"><CountUp target={99.9} decimals={1} suffix="%" /></div>
+              <div className="stat-label">Uptime SLA</div>
+            </Reveal>
+            <Reveal delay={4} className="col-6 col-md-3">
+              <FiClock size={30} className="mb-2" style={{ color: '#8b5cf6' }} />
+              <div className="stat-value-cinematic">&lt;&nbsp;<CountUp target={5} />s</div>
+              <div className="stat-label">Avg Settlement</div>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      {/* ──────────────── FEATURES ──────────────── */}
-      <section className="py-5">
+      {/* ──────────────── WHY CHOOSE US ──────────────── */}
+      <section className="py-5 section-relative" style={{ background: '#ffffff' }}>
+        <div className="parallax-orbs">
+          <div className="orb o1" style={{ opacity: 0.3 }} />
+        </div>
         <div className="container py-4">
-          <div className="text-center mb-5 reveal">
-            <p className="text-uppercase fw-bold mb-2" style={{ color: '#8b5cf6', letterSpacing: '2px', fontSize: '0.85rem' }}>
-              WHY MAHAKAL PAY
-            </p>
-            <h2 className="fw-bold" style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', color: '#1a237e' }}>
-              Built for serious retailers.
-            </h2>
-            <p className="text-muted mx-auto" style={{ maxWidth: 560 }}>
-              A recharge counter is a high-volume, low-margin business. We obsess over the details
-              so every commission, every refund, every audit row is exactly right.
-            </p>
-          </div>
+          <Reveal as="span" className="section-eyebrow">WHY MAHAKAL PAY</Reveal>
+          <Reveal as="h2" delay={1} className="section-heading">Why Choose Us</Reveal>
+          <div className="section-heading-divider" />
+          <Reveal as="p" delay={2} className="section-sub">
+            A recharge counter is a high-volume, low-margin business. We obsess over the details
+            so every commission, every refund and every audit row is exactly right.
+          </Reveal>
           <div className="row g-4">
-            {features.map((f, i) => (
-              <div className="col-md-6 col-lg-4" key={f.title}>
-                <div className={`feature-card-modern reveal delay-${(i % 6) + 1}`}>
-                  <div className="feature-icon-modern" style={{ background: f.color }}>
-                    <f.icon size={28} />
+            {whyChoose.map((w, i) => (
+              <Reveal delay={i + 1} className="col-md-4" key={w.title}>
+                <div className={`why-card ${w.cls}`}>
+                  <div className="why-icon-wrap">
+                    <w.icon size={36} />
                   </div>
-                  <h5>{f.title}</h5>
-                  <p>{f.desc}</p>
+                  <h5>{w.title}</h5>
+                  <p>{w.desc}</p>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ──────────────── OPERATORS MARQUEE ──────────────── */}
-      <section className="py-5" style={{ background: '#f8f9ff' }}>
-        <div className="container">
-          <div className="text-center mb-4 reveal">
-            <p className="text-uppercase fw-bold mb-2" style={{ color: '#8b5cf6', letterSpacing: '2px', fontSize: '0.85rem' }}>
-              ALL MAJOR OPERATORS
-            </p>
-            <h2 className="fw-bold" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', color: '#1a237e' }}>
-              Every brand your customers ask for.
-            </h2>
-          </div>
+      {/* ──────────────── FEATURED SERVICES ──────────────── */}
+      <section className="py-5 section-relative" style={{ background: '#f8f9ff' }}>
+        <div className="parallax-orbs">
+          <div className="orb o2" style={{ opacity: 0.4 }} />
         </div>
-        <div className="marquee">
-          <div className="marquee-track">
-            {[...operators, ...operators].map((op, i) => (
-              <div key={i} className="pill">{op}</div>
+        <div className="container py-4">
+          <Reveal as="span" className="section-eyebrow">WHAT WE OFFER</Reveal>
+          <Reveal as="h2" delay={1} className="section-heading">Featured Services</Reveal>
+          <div className="section-heading-divider" />
+          <div className="row g-4">
+            {services.map((s, i) => (
+              <Reveal delay={i + 1} className="col-6 col-md-3" key={s.title}>
+                <div className="service-card">
+                  <div className="service-icon-box">
+                    <s.icon size={36} />
+                  </div>
+                  <h6>{s.title}</h6>
+                  <Link to="/services" className="learn-more">
+                    Learn More <FiArrowRight size={13} />
+                  </Link>
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ──────────────── CTA ──────────────── */}
-      <section className="cta-modern">
+      {/* ──────────────── HOW IT WORKS ──────────────── */}
+      <section className="py-5" style={{ background: '#ffffff' }}>
+        <div className="container py-4">
+          <Reveal as="span" className="section-eyebrow">PROCESS</Reveal>
+          <Reveal as="h2" delay={1} className="section-heading">How it Works</Reveal>
+          <div className="section-heading-divider" />
+          <div className="howitworks">
+            <div className="row g-4">
+              {steps.map((step, i) => (
+                <Reveal delay={i + 1} className="col-6 col-md-3" key={step.title}>
+                  <div className="step">
+                    <div className="step-icon">
+                      <step.icon size={36} />
+                      <span className="step-number">{i + 1}</span>
+                    </div>
+                    <h6>{step.title}</h6>
+                    <p>{step.desc}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────────── TESTIMONIALS ──────────────── */}
+      <section className="py-5 section-relative" style={{ background: '#f8f9ff' }}>
+        <div className="parallax-orbs">
+          <div className="orb o3" style={{ opacity: 0.35 }} />
+        </div>
+        <div className="container py-4">
+          <Reveal as="span" className="section-eyebrow">TRUSTED BY RETAILERS</Reveal>
+          <Reveal as="h2" delay={1} className="section-heading">Client Testimonials</Reveal>
+          <div className="section-heading-divider" />
+          <div className="row g-4">
+            {testimonials.map((t, i) => (
+              <Reveal from={i === 0 ? 'left' : i === 2 ? 'right' : 'up'} delay={i + 1} className="col-md-4" key={t.name}>
+                <div className="testimonial-card">
+                  <p>{t.quote}</p>
+                  <div className="testimonial-author">
+                    <div className={`testimonial-avatar ${t.avatarCls}`}>{t.initials}</div>
+                    <div>
+                      <div className="testimonial-name">{t.name}</div>
+                      <div className="testimonial-role">{t.role}</div>
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────────── JOIN OUR NETWORK CTA ──────────────── */}
+      <section className="join-banner section-relative">
+        <div className="parallax-orbs">
+          <div className="orb o1" />
+          <div className="orb o2" />
+        </div>
         <div className="container">
-          <h3 className="reveal">Become a Retailer or Distributor today.</h3>
-          <p className="reveal delay-1">
-            Join the Mahakal Pay network and start earning with every recharge transaction.
-          </p>
-          <div className="reveal delay-2">
-            <Link to="/contact" className="btn btn-cta-glow d-inline-flex align-items-center gap-2">
-              Contact Us Now <FiArrowRight />
-            </Link>
+          <div className="row align-items-center g-4">
+            <Reveal from="left" className="col-md-8">
+              <h3>Join Our Network of Successful Retailers</h3>
+              <p>Start earning with every recharge. Onboard through your distributor or contact us directly.</p>
+            </Reveal>
+            <Reveal from="right" delay={2} className="col-md-4 text-md-end">
+              <Link to="/contact" className="btn btn-cta-glow d-inline-flex align-items-center gap-2">
+                Register Now <FiArrowRight />
+              </Link>
+            </Reveal>
           </div>
         </div>
       </section>

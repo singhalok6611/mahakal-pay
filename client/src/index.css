@@ -1481,3 +1481,457 @@ footer a:hover {
   color: rgba(255,255,255,0.82);
   margin-bottom: 28px;
 }
+
+/* ============================================
+   Hero phone-in-frame illustration (reference style)
+   ============================================ */
+.phone-frame {
+  width: 240px;
+  height: 320px;
+  border: 4px solid #ffc107;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 30px 80px rgba(255, 193, 7, 0.25);
+  animation: float 5s ease-in-out infinite;
+}
+.phone-frame::before,
+.phone-frame::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.phone-frame::before {
+  width: 380px; height: 380px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  z-index: -1;
+}
+.phone-frame::after {
+  width: 460px; height: 460px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  z-index: -1;
+}
+
+/* ============================================
+   Wave divider (between hero and next section)
+   ============================================ */
+.wave-divider {
+  display: block;
+  width: 100%;
+  height: 100px;
+  margin-top: -1px;
+}
+
+/* ============================================
+   "Why Choose Us" section
+   ============================================ */
+.section-eyebrow {
+  display: block;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 2.5px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #8b5cf6;
+  margin-bottom: 8px;
+}
+.section-heading {
+  text-align: center;
+  font-weight: 800;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  color: #1a237e;
+  margin-bottom: 12px;
+}
+.section-heading-divider {
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #ffc107, #ff8f00);
+  border-radius: 2px;
+  margin: 0 auto 40px;
+}
+.section-sub {
+  text-align: center;
+  color: #64748b;
+  max-width: 620px;
+  margin: 0 auto 48px;
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.why-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 40px 28px 32px;
+  text-align: center;
+  border: 1px solid #eef0f6;
+  box-shadow: 0 10px 40px rgba(26, 35, 126, 0.06);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  height: 100%;
+}
+.why-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 25px 60px rgba(26, 35, 126, 0.13);
+}
+.why-icon-wrap {
+  width: 86px;
+  height: 86px;
+  margin: 0 auto 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #fff;
+  position: relative;
+  box-shadow: 0 12px 30px rgba(139, 92, 246, 0.3);
+}
+.why-icon-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border: 1.5px dashed rgba(139, 92, 246, 0.35);
+  border-radius: 50%;
+  animation: spin-slow 20s linear infinite;
+}
+.why-card.alt .why-icon-wrap {
+  background: linear-gradient(135deg, #ffc107 0%, #ff8f00 100%);
+  box-shadow: 0 12px 30px rgba(255, 193, 7, 0.4);
+}
+.why-card.alt .why-icon-wrap::before { border-color: rgba(255, 193, 7, 0.5); }
+.why-card.alt2 .why-icon-wrap {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  box-shadow: 0 12px 30px rgba(16, 185, 129, 0.35);
+}
+.why-card.alt2 .why-icon-wrap::before { border-color: rgba(16, 185, 129, 0.5); }
+.why-card h5 {
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: #1a237e;
+  margin-bottom: 12px;
+}
+.why-card p {
+  color: #64748b;
+  line-height: 1.7;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+/* ============================================
+   Featured Services cards (4 across)
+   ============================================ */
+.service-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px 22px;
+  text-align: center;
+  border: 1px solid #eef0f6;
+  box-shadow: 0 8px 30px rgba(26, 35, 126, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  height: 100%;
+}
+.service-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 24px 60px rgba(26, 35, 126, 0.14);
+}
+.service-icon-box {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 18px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ffc107 0%, #ff8f00 100%);
+  color: #fff;
+  box-shadow: 0 12px 28px rgba(255, 193, 7, 0.35);
+  transition: transform 0.3s ease;
+}
+.service-card:hover .service-icon-box {
+  transform: scale(1.08) rotate(-6deg);
+}
+.service-card h6 {
+  font-weight: 800;
+  color: #1a237e;
+  margin-bottom: 8px;
+  font-size: 1.05rem;
+}
+.service-card .learn-more {
+  color: #ff8f00;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: gap 0.2s ease;
+}
+.service-card:hover .learn-more { gap: 8px; }
+
+/* ============================================
+   How It Works (4 steps + connecting line)
+   ============================================ */
+.howitworks {
+  position: relative;
+  padding: 30px 0;
+}
+.howitworks::before {
+  content: '';
+  position: absolute;
+  top: 70px;
+  left: 12.5%;
+  right: 12.5%;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #c5cae9 0 10px, transparent 10px 18px);
+  z-index: 0;
+}
+.step {
+  position: relative;
+  text-align: center;
+  z-index: 1;
+}
+.step-icon {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #ffc107;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1a237e;
+  position: relative;
+  box-shadow: 0 12px 30px rgba(255, 193, 7, 0.25);
+  transition: transform 0.3s ease;
+}
+.step:hover .step-icon { transform: translateY(-6px) scale(1.05); }
+.step-number {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid #fff;
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+.step h6 {
+  font-weight: 800;
+  color: #1a237e;
+  margin-bottom: 6px;
+  font-size: 1.05rem;
+}
+.step p {
+  color: #64748b;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ============================================
+   Testimonials
+   ============================================ */
+.testimonial-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px 28px 28px;
+  border: 1px solid #eef0f6;
+  box-shadow: 0 10px 40px rgba(26, 35, 126, 0.06);
+  height: 100%;
+  position: relative;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.testimonial-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 60px rgba(26, 35, 126, 0.13);
+}
+.testimonial-card::before {
+  content: '"';
+  position: absolute;
+  top: 14px;
+  right: 24px;
+  font-family: Georgia, serif;
+  font-size: 4.5rem;
+  line-height: 1;
+  color: #ffc107;
+  opacity: 0.3;
+}
+.testimonial-card p {
+  color: #475569;
+  font-size: 0.96rem;
+  line-height: 1.75;
+  margin-bottom: 22px;
+  font-style: italic;
+}
+.testimonial-author {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.testimonial-avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+  border: 3px solid #fff;
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.3);
+}
+.testimonial-avatar.gold { background: linear-gradient(135deg, #ffc107, #ff8f00); box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4); }
+.testimonial-avatar.green { background: linear-gradient(135deg, #10b981, #06b6d4); box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3); }
+.testimonial-name {
+  font-weight: 800;
+  color: #1a237e;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+.testimonial-role {
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+/* ============================================
+   "Join Our Network" CTA banner
+   ============================================ */
+.join-banner {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1a237e 0%, #4a148c 50%, #6d28d9 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 12s ease-in-out infinite;
+  padding: 60px 0;
+  color: #fff;
+}
+.join-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,193,7,0.2),  transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(139,92,246,0.35),transparent 50%);
+  pointer-events: none;
+}
+.join-banner .container { position: relative; z-index: 1; }
+.join-banner h3 {
+  font-weight: 800;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  margin: 0;
+}
+.join-banner p {
+  color: rgba(255,255,255,0.78);
+  margin: 6px 0 0;
+  font-size: 1.02rem;
+}
+
+/* ============================================
+   "Movie / cinematic" upgrades — scroll reveal,
+   parallax orbs, animated stats, typewriter caret
+   ============================================ */
+
+/* IntersectionObserver-driven reveal: hidden by default,
+   gains .in-view (added from JS) which triggers a richer animation. */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(40px) scale(0.97);
+  transition: opacity 0.9s cubic-bezier(0.16,1,0.3,1),
+              transform 0.9s cubic-bezier(0.16,1,0.3,1);
+  will-change: opacity, transform;
+}
+.scroll-reveal.in-view {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.scroll-reveal.from-left  { transform: translateX(-50px); }
+.scroll-reveal.from-right { transform: translateX(50px); }
+.scroll-reveal.from-left.in-view,
+.scroll-reveal.from-right.in-view { transform: translateX(0); }
+
+.scroll-reveal[data-delay="1"] { transition-delay: 0.10s; }
+.scroll-reveal[data-delay="2"] { transition-delay: 0.20s; }
+.scroll-reveal[data-delay="3"] { transition-delay: 0.30s; }
+.scroll-reveal[data-delay="4"] { transition-delay: 0.40s; }
+.scroll-reveal[data-delay="5"] { transition-delay: 0.50s; }
+
+/* Floating parallax orbs that drift across full sections */
+.parallax-orbs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.parallax-orbs .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.6;
+}
+.parallax-orbs .orb.o1 { width: 320px; height: 320px; background: rgba(139,92,246,0.25); top: -100px;  left: -80px;  animation: float       12s ease-in-out infinite; }
+.parallax-orbs .orb.o2 { width: 260px; height: 260px; background: rgba(255,193,7,0.18);  bottom: -60px; right: -40px; animation: float-slow 14s ease-in-out infinite; }
+.parallax-orbs .orb.o3 { width: 200px; height: 200px; background: rgba(99,102,241,0.18); top: 40%;     left: 50%;    animation: float       16s ease-in-out infinite reverse; }
+
+/* Bigger title gradient that animates the gradient itself */
+.hero-title .grad-gold {
+  background: linear-gradient(135deg, #fff59d 0%, #ffc107 30%, #ff8f00 60%, #ffc107 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-shift 4s ease-in-out infinite;
+}
+
+/* Typewriter caret next to a word */
+.caret {
+  display: inline-block;
+  width: 4px;
+  background: #ffc107;
+  margin-left: 4px;
+  animation: blink 1s step-end infinite;
+  vertical-align: -8%;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+/* Animated stat counter — slight pop on view */
+@keyframes pop-in {
+  0%   { transform: scale(0.6); opacity: 0; }
+  60%  { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1);   opacity: 1; }
+}
+.stat-value-cinematic {
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  font-weight: 900;
+  background: linear-gradient(135deg, #1a237e 0%, #6d28d9 50%, #ec4899 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1;
+}
+.scroll-reveal.in-view .stat-value-cinematic {
+  animation: pop-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Section-relative wrapper so parallax orbs stay scoped */
+.section-relative { position: relative; overflow: hidden; }
+
+/* Enhanced phone frame with screen shimmer */
+.phone-frame::before {
+  animation: spin-slow 30s linear infinite;
+  border: 1px dashed rgba(255,255,255,0.15);
+}
+.phone-frame::after {
+  animation: spin-slow 40s linear infinite reverse;
+  border: 1px dashed rgba(255,193,7,0.18);
+}
