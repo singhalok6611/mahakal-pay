@@ -156,6 +156,12 @@ const AdminController = {
       approval_status: 'approved',
     });
 
+    notify.welcomeUser({
+      user,
+      plainPassword: password,
+      createdByName: req.user.name,
+    });
+
     res.status(201).json({ message: 'Distributor created', user });
   },
 
@@ -377,6 +383,12 @@ const AdminController = {
       approval_status: 'approved',
     });
 
+    notify.welcomeUser({
+      user,
+      plainPassword: password,
+      createdByName: req.user.name,
+    });
+
     res.status(201).json({ message: 'Retailer created', user });
   },
 
@@ -398,6 +410,7 @@ const AdminController = {
       return res.status(400).json({ error: 'Retailer is already approved' });
     }
     const updated = UserModel.setApprovalStatus(id, 'approved');
+    notify.retailerApproved({ retailer: updated });
     res.json({ message: 'Retailer approved', user: updated });
   },
 
@@ -408,6 +421,7 @@ const AdminController = {
       return res.status(404).json({ error: 'Retailer not found' });
     }
     const updated = UserModel.setApprovalStatus(id, 'rejected');
+    notify.retailerRejected({ retailer: updated });
     res.json({ message: 'Retailer rejected', user: updated });
   },
 
@@ -424,6 +438,8 @@ const AdminController = {
     const { remarks } = req.body || {};
     try {
       const w = WithdrawalModel.approve(id, req.user.id, remarks);
+      const user = UserModel.findById(w.user_id);
+      notify.withdrawalApproved({ user, withdrawal: w });
       res.json({ message: 'Withdrawal approved and wallet debited', withdrawal: w });
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -435,6 +451,8 @@ const AdminController = {
     const { remarks } = req.body || {};
     try {
       const w = WithdrawalModel.reject(id, req.user.id, remarks);
+      const user = UserModel.findById(w.user_id);
+      notify.withdrawalRejected({ user, withdrawal: w, remarks });
       res.json({ message: 'Withdrawal rejected', withdrawal: w });
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -490,9 +508,7 @@ const AdminController = {
     });
     txn();
 
-    notify.suspension({
-      userName: user.name, userId: user.id, role: user.role, sweptAmount: sweepAmount,
-    });
+    notify.suspension({ user, sweptAmount: sweepAmount });
 
     res.json({
       message: `User suspended${sweepAmount > 0 ? ` and ₹${sweepAmount.toFixed(2)} swept to admin wallet` : ''}`,

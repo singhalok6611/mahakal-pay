@@ -246,7 +246,7 @@ const RetailerController = {
     }
     const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
     notify.withdrawalCreated({
-      userName: req.user.name, userId: req.user.id,
+      userName: req.user.name, userId: req.user.id, userEmail: req.user.email,
       withdrawalId: w.id, amount: payload.amount, method: payload.method,
     });
     res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });

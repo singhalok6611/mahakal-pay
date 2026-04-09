@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FiAlertTriangle, FiCheckCircle, FiRefreshCw, FiExternalLink,
-  FiCopy, FiSmartphone, FiDollarSign,
+  FiCopy, FiSmartphone, FiDollarSign, FiInfo,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { getFloatStatus, getPay2allDeposit } from '../../api/admin.api';
@@ -19,6 +19,7 @@ export default function FloatHealthCard() {
   const [deposit, setDeposit] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [topupAmount, setTopupAmount] = useState('');
 
   const load = async () => {
     setRefreshing(true);
@@ -26,6 +27,11 @@ export default function FloatHealthCard() {
       const [s, d] = await Promise.all([getFloatStatus(), getPay2allDeposit()]);
       setStatus(s.data);
       setDeposit(d.data);
+      // Pre-fill the top-up box with the live shortfall the FIRST time only,
+      // so the admin can clearly see "this is what you need" but can edit it.
+      if (s.data?.delta < 0 && !topupAmount) {
+        setTopupAmount(String(Math.round(Math.abs(s.data.delta))));
+      }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to load float status');
     } finally {
@@ -34,13 +40,30 @@ export default function FloatHealthCard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   const copy = (label, value) => {
     navigator.clipboard.writeText(value)
       .then(() => toast.success(`${label} copied`))
       .catch(() => toast.error('Copy failed'));
   };
+
+  // Build the UPI deep link from whatever amount the admin typed.
+  const upiAmountNum = Math.max(0, parseFloat(topupAmount) || 0);
+  const upiLink = useMemo(() => {
+    if (!deposit?.upi_id || upiAmountNum <= 0) return null;
+    return `upi://pay?pa=${encodeURIComponent(deposit.upi_id)}` +
+           `&pn=${encodeURIComponent(deposit.account_holder || 'Pay2All')}` +
+           `&am=${upiAmountNum}` +
+           `&cu=INR` +
+           `&tn=${encodeURIComponent('Pay2All master top-up')}`;
+  }, [deposit, upiAmountNum]);
+
+  // Server-side QR code via free public API. For desktop users who can't
+  // tap a deep link — they scan this with their phone's UPI app instead.
+  const qrUrl = upiLink
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(upiLink)}`
+    : null;
 
   if (loading) {
     return <div className="card border-0 shadow-sm p-4 mb-4 text-center text-muted">Loading float status…</div>;
@@ -49,10 +72,6 @@ export default function FloatHealthCard() {
 
   const theme = HEALTH_THEME[status.health] || HEALTH_THEME.warning;
   const Icon = theme.icon;
-  const upiAmount = Math.max(0, Math.round(Math.abs(status.delta) || 1000)); // suggested top-up
-  const upiLink = deposit?.upi_id
-    ? `upi://pay?pa=${encodeURIComponent(deposit.upi_id)}&pn=${encodeURIComponent(deposit.account_holder || 'Pay2All')}&am=${upiAmount}&cu=INR&tn=${encodeURIComponent('Pay2All master top-up')}`
-    : null;
 
   return (
     <div className="row g-3 mb-4">
@@ -197,18 +216,55 @@ export default function FloatHealthCard() {
                   </button>
                 </div>
 
-                {upiLink && (
-                  <a
-                    href={upiLink}
-                    className="btn btn-warning w-100 d-inline-flex align-items-center justify-content-center gap-2 fw-bold"
-                  >
-                    <FiSmartphone />
-                    Pay via UPI {upiAmount > 0 && `(₹${upiAmount.toLocaleString('en-IN')})`}
-                  </a>
+                <div className="mb-2">
+                  <small className="text-muted d-block">Top-up amount (₹)</small>
+                  <input
+                    type="number"
+                    className="form-control"
+                    placeholder="Enter amount"
+                    value={topupAmount}
+                    min="1"
+                    onChange={(e) => setTopupAmount(e.target.value)}
+                  />
+                  <small className="text-muted">
+                    <FiInfo size={11} className="me-1" />
+                    Pre-filled with the current shortfall ({status.delta < 0 ? `₹${Math.round(Math.abs(status.delta)).toLocaleString('en-IN')}` : '₹0'}).
+                    You can change it.
+                  </small>
+                </div>
+
+                {upiLink ? (
+                  <>
+                    <a
+                      href={upiLink}
+                      className="btn btn-warning w-100 d-inline-flex align-items-center justify-content-center gap-2 fw-bold mb-2"
+                    >
+                      <FiSmartphone />
+                      Pay via UPI (₹{upiAmountNum.toLocaleString('en-IN')})
+                    </a>
+                    <small className="text-muted d-block text-center mb-2">
+                      Tap on phone (opens your UPI app) — or scan the QR below from desktop.
+                    </small>
+                    {qrUrl && (
+                      <div className="text-center p-2" style={{ background: '#f8f9ff', borderRadius: 12 }}>
+                        <img
+                          src={qrUrl}
+                          alt={`UPI QR for ₹${upiAmountNum}`}
+                          width={180}
+                          height={180}
+                          style={{ display: 'block', margin: '0 auto' }}
+                        />
+                        <small className="text-muted d-block mt-1">
+                          Scan with any UPI app · ₹{upiAmountNum.toLocaleString('en-IN')}
+                        </small>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="alert alert-info small mb-0">
+                    Enter an amount above to generate the UPI payment link + QR code.
+                  </div>
                 )}
-                <small className="text-muted d-block mt-2 text-center">
-                  Opens your UPI app prefilled. Suggested amount = current shortfall.
-                </small>
               </>
             )}
           </div>

@@ -78,6 +78,11 @@ const DistributorController = {
       approval_status: 'pending_approval',
     });
 
+    // Welcome the retailer + tell them they're pending approval, AND
+    // tell the admin a new retailer is waiting in the queue.
+    notify.welcomeUser({ user, plainPassword: password, createdByName: req.user.name });
+    notify.retailerPendingApproval({ retailer: user, distributor: req.user });
+
     res.status(201).json({
       message: 'Retailer created. Pending admin approval.',
       user,
@@ -161,7 +166,7 @@ const DistributorController = {
     }
     const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
     notify.withdrawalCreated({
-      userName: req.user.name, userId: req.user.id,
+      userName: req.user.name, userId: req.user.id, userEmail: req.user.email,
       withdrawalId: w.id, amount: payload.amount, method: payload.method,
     });
     res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });
