@@ -79,7 +79,11 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h6 className="fw-bold mb-1" style={{ fontSize: '1.05rem' }}>Email</h6>
-                    <p className="mb-0" style={{ color: '#666' }}>support@mahakalpay.in</p>
+                    <p className="mb-0">
+                      <a href="mailto:alok.singh6611@gmail.com" style={{ color: '#3498db', textDecoration: 'none' }}>
+                        alok.singh6611@gmail.com
+                      </a>
+                    </p>
                   </div>
                 </div>
                 <div className="d-flex align-items-start gap-3">
@@ -88,7 +92,11 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h6 className="fw-bold mb-1" style={{ fontSize: '1.05rem' }}>Phone</h6>
-                    <p className="mb-0" style={{ color: '#666' }}>+91 9999999999</p>
+                    <p className="mb-0">
+                      <a href="tel:+919140929113" style={{ color: '#666', textDecoration: 'none' }}>
+                        +91 91409 29113
+                      </a>
+                    </p>
                   </div>
                 </div>
                 <div className="d-flex align-items-start gap-3">
@@ -104,8 +112,13 @@ export default function ContactPage() {
               <hr className="my-4" />
               <div className="p-3 rounded-3" style={{ background: '#f8f9ff' }}>
                 <h6 className="fw-bold mb-2" style={{ fontSize: '1.05rem' }}>Want to become a partner?</h6>
-                <p className="mb-0" style={{ fontSize: '0.95rem', color: '#666' }}>
-                  Contact us to become a distributor or retailer. Start your recharge business today with Mahakal Pay.
+                <p className="mb-2" style={{ fontSize: '0.95rem', color: '#666' }}>
+                  Mahakal Pay does not have public sign-up. Distributors are onboarded by the admin, and retailers are added by their distributor (subject to admin approval). To become a partner, write to us at:
+                </p>
+                <p className="mb-0">
+                  <a href="mailto:alok.singh6611@gmail.com" className="fw-semibold" style={{ color: '#3498db', textDecoration: 'none' }}>
+                    alok.singh6611@gmail.com
+                  </a>
                 </p>
               </div>
             </div>

@@ -36,8 +36,8 @@ INSERT OR IGNORE INTO operators (name, code, service_type, commission_pct) VALUE
 INSERT OR IGNORE INTO settings (key, value) VALUES
 ('site_name', 'Mahakal Pay'),
 ('site_tagline', 'Instant Recharge & Bill Payments'),
-('support_email', 'support@mahakalpay.in'),
-('support_phone', '9999999999'),
+('support_email', 'alok.singh6611@gmail.com'),
+('support_phone', '9140929113'),
 ('min_recharge', '10'),
 ('max_recharge', '10000'),
 ('min_fund_request', '500'),
