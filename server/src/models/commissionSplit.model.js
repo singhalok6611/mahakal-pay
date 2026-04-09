@@ -1,22 +1,37 @@
 /**
- * CommissionSplit — slice 3 replacement for the old "1% platform fee" model
- * on the retailer recharge path.
+ * CommissionSplit — owns the per-transaction commission distribution.
  *
- * Rule (per project_mahakal_commission memory):
- *   On every retailer-earned commission we credit the upline:
- *     - Distributor (the retailer's parent) gets distributor_share_pct % of
- *       the retailer's commission (default 0.25%).
- *     - Admin gets admin_share_pct % of the retailer's commission
- *       (default 0.5%).
- *   Both credits are real wallet movements (wallet_transactions rows) so the
- *   distributor and admin see them in their statements.
+ * NEW RULE (revised after slice 3, per the user's clarification):
+ *   The operator's commission_pct is the ENTIRE pool, and it is split in
+ *   absolute percentage points of the recharge amount:
  *
- * The split is computed off the retailer's COMMISSION, not the recharge
- * amount, and never reduces the retailer's commission credit — it is paid
- * by the platform on top, the same way revenue overrides work in real
- * BBPS aggregator economics. (If the user's intent later changes to
- * "deduct from retailer commission", flip the retailer credit accordingly
- * at the call site — this model only handles the upline credits.)
+ *     Admin       gets admin_share_pct % of the recharge amount
+ *                 (default 0.5%)
+ *     Distributor gets distributor_share_pct % of the recharge amount
+ *                 (default 0.25%)
+ *     Retailer    keeps  (operator_pct - admin_share_pct - distributor_share_pct) %
+ *                 of the recharge amount — i.e. whatever is left of the pool.
+ *
+ *   Worked example: ₹500 Airtel mobile recharge, operator commission 3%.
+ *     Pool        = 3.00% × 500 = ₹15.00
+ *     Admin       = 0.50% × 500 = ₹2.50
+ *     Distributor = 0.25% × 500 = ₹1.25
+ *     Retailer    = 2.25% × 500 = ₹11.25     (sum: ₹15.00 ✓)
+ *
+ * Cascading cap for very thin operators:
+ *   If operator_pct < admin_share_pct + distributor_share_pct, the admin
+ *   is paid first (up to the available pool), then the distributor gets
+ *   what's left, then the retailer. This guarantees the three credits
+ *   always sum to exactly the pool, never go negative, and never exceed
+ *   the operator commission.
+ *
+ * Slices that depend on this:
+ *   - retailer.controller.recharge calls apply() once on success and uses
+ *     the returned retailerAmount as transactions.commission.
+ *   - admin platform earnings page (slice 3 UI) and the role-scoped
+ *     detailed transactions pages (slice 6) read commission_splits rows
+ *     directly — schema is unchanged so they keep working with the new
+ *     numbers automatically.
  */
 
 const db = require('../config/db');
@@ -48,77 +63,106 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+/**
+ * Pure helper: given an operator commission % and the configured admin /
+ * distributor cuts, return the effective percentage each party receives
+ * (in absolute pp of the recharge amount). Applies the cascading cap
+ * (admin → distributor → retailer priority) so the three pieces always
+ * sum to exactly the operator pct.
+ */
+function computeSplitPcts({ operatorPct, adminPct, distributorPct }) {
+  const op = Math.max(0, Number(operatorPct) || 0);
+  const a = Math.max(0, Number(adminPct) || 0);
+  const d = Math.max(0, Number(distributorPct) || 0);
+
+  if (op >= a + d) {
+    return { adminEffectivePct: a, distributorEffectivePct: d, retailerEffectivePct: round2(op - a - d) };
+  }
+  if (op >= a) {
+    return { adminEffectivePct: a, distributorEffectivePct: round2(op - a), retailerEffectivePct: 0 };
+  }
+  return { adminEffectivePct: round2(op), distributorEffectivePct: 0, retailerEffectivePct: 0 };
+}
+
 const CommissionSplitModel = {
   ADMIN_USER_ID,
   getSplitConfig,
+  computeSplitPcts,
 
   /**
-   * Compute and credit the distributor + admin overrides for a retailer
-   * commission, then record one commission_splits row.
+   * Compute the full split off a recharge, credit all three wallets, and
+   * record one commission_splits row. Single source of truth for the
+   * commission rule.
    *
    * @param {object} params
-   * @param {number} params.transactionId       internal transactions.id
-   * @param {number} params.retailerUserId      retailer who earned the commission
-   * @param {number} params.retailerCommission  the retailer commission amount (₹)
-   * @returns {object}                          { distributorShare, adminShare, splitId }
+   * @param {number} params.transactionId         internal transactions.id
+   * @param {number} params.retailerUserId        retailer who did the recharge
+   * @param {number} params.rechargeAmount        recharge amount (₹)
+   * @param {number} params.operatorCommissionPct operator commission_pct from operators table
+   * @returns {object} { retailerAmount, distributorAmount, adminAmount,
+   *                     retailerEffectivePct, distributorEffectivePct,
+   *                     adminEffectivePct, splitId }
    */
-  apply({ transactionId, retailerUserId, retailerCommission }) {
+  apply({ transactionId, retailerUserId, rechargeAmount, operatorCommissionPct }) {
     if (!transactionId || !retailerUserId) {
       throw new Error('CommissionSplit.apply requires transactionId + retailerUserId');
     }
-    const base = parseFloat(retailerCommission) || 0;
-    if (base <= 0) {
-      // Nothing to split — still record a zero-row so the audit trail is complete.
-      const { distributor_share_pct, admin_share_pct } = getSplitConfig();
-      const retailer = db.prepare('SELECT parent_id FROM users WHERE id = ?').get(retailerUserId);
-      const splitId = db.prepare(`
-        INSERT INTO commission_splits (
-          transaction_id, retailer_user_id, retailer_commission_amount,
-          distributor_user_id, distributor_share_pct, distributor_share_amount,
-          admin_user_id, admin_share_pct, admin_share_amount
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        transactionId, retailerUserId, 0,
-        retailer ? retailer.parent_id : null, distributor_share_pct, 0,
-        ADMIN_USER_ID, admin_share_pct, 0
-      ).lastInsertRowid;
-      return { distributorShare: 0, adminShare: 0, splitId };
+    const amount = parseFloat(rechargeAmount) || 0;
+    if (amount <= 0) {
+      throw new Error('CommissionSplit.apply requires a positive rechargeAmount');
     }
 
     const { distributor_share_pct, admin_share_pct } = getSplitConfig();
+    const { adminEffectivePct, distributorEffectivePct, retailerEffectivePct } =
+      computeSplitPcts({
+        operatorPct: operatorCommissionPct,
+        adminPct: admin_share_pct,
+        distributorPct: distributor_share_pct,
+      });
+
+    const adminAmount = round2((amount * adminEffectivePct) / 100);
+    const distributorAmount = round2((amount * distributorEffectivePct) / 100);
+    const retailerAmount = round2((amount * retailerEffectivePct) / 100);
 
     const retailer = db.prepare('SELECT id, parent_id, name FROM users WHERE id = ?').get(retailerUserId);
     if (!retailer) throw new Error('Retailer not found');
-
     const distributorUserId = retailer.parent_id; // may be null in odd test data
-    const distributorShare = distributor_share_pct > 0 ? round2((base * distributor_share_pct) / 100) : 0;
-    const adminShare = admin_share_pct > 0 ? round2((base * admin_share_pct) / 100) : 0;
 
-    // Wallet credits — wrapped in a single transaction so the row + both
-    // wallet movements all land or all roll back.
+    // Wallet credits + audit row — wrapped in a single DB transaction so
+    // either everything lands or nothing does.
     const txn = db.transaction(() => {
-      if (distributorUserId && distributorShare > 0) {
+      if (retailerAmount > 0) {
+        WalletModel.credit(
+          retailerUserId,
+          retailerAmount,
+          'commission',
+          transactionId,
+          `Net commission ${retailerEffectivePct}% on txn #${transactionId} (operator ${operatorCommissionPct}% − admin ${adminEffectivePct}% − dist ${distributorEffectivePct}%)`
+        );
+      }
+
+      if (distributorUserId && distributorAmount > 0) {
         const distWallet = WalletModel.getByUserId(distributorUserId);
         if (distWallet) {
           WalletModel.credit(
             distributorUserId,
-            distributorShare,
+            distributorAmount,
             'commission_override',
             transactionId,
-            `Override ${distributor_share_pct}% on retailer commission for txn #${transactionId}`
+            `Distributor override ${distributorEffectivePct}% of recharge for txn #${transactionId}`
           );
         }
       }
 
-      if (adminShare > 0 && ADMIN_USER_ID !== retailerUserId) {
+      if (adminAmount > 0 && ADMIN_USER_ID !== retailerUserId) {
         const adminWallet = WalletModel.getByUserId(ADMIN_USER_ID);
         if (adminWallet) {
           WalletModel.credit(
             ADMIN_USER_ID,
-            adminShare,
+            adminAmount,
             'commission_override',
             transactionId,
-            `Admin override ${admin_share_pct}% on retailer commission for txn #${transactionId}`
+            `Admin override ${adminEffectivePct}% of recharge for txn #${transactionId}`
           );
         }
       }
@@ -130,15 +174,19 @@ const CommissionSplitModel = {
           admin_user_id, admin_share_pct, admin_share_amount
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        transactionId, retailerUserId, base,
-        distributorUserId, distributor_share_pct, distributorShare,
-        ADMIN_USER_ID, admin_share_pct, adminShare
+        transactionId, retailerUserId, retailerAmount,
+        distributorUserId, distributorEffectivePct, distributorAmount,
+        ADMIN_USER_ID, adminEffectivePct, adminAmount
       );
       return result.lastInsertRowid;
     });
 
     const splitId = txn();
-    return { distributorShare, adminShare, splitId };
+    return {
+      retailerAmount, distributorAmount, adminAmount,
+      retailerEffectivePct, distributorEffectivePct, adminEffectivePct,
+      splitId,
+    };
   },
 
   /**

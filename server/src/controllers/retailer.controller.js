@@ -128,26 +128,27 @@ const RetailerController = {
       });
     }
 
-    // 5) On success: pay commission to retailer, then split the upline overrides
-    //    (slice 3 — replaces the old flat "1% platform fee to admin" model).
+    // 5) On success: split the operator commission three ways and credit
+    //    each wallet. The CommissionSplit model is the single source of
+    //    truth — it computes admin (0.5pp), distributor (0.25pp) and
+    //    retailer (operator% − 0.75pp) cuts off the recharge amount,
+    //    handles the cascading cap for thin operators, credits all three
+    //    wallets, and inserts one commission_splits row.
     if (cyrusResult.status === 'success') {
-      const commission = Math.round(((parsedAmount * op.commission_pct) / 100) * 100) / 100;
-      if (commission > 0) {
-        WalletModel.credit(req.user.id, commission, 'commission', txn.id, `Commission for ${service_type} recharge`);
-        db.prepare('UPDATE transactions SET commission = ? WHERE id = ?').run(commission, txn.id);
-      }
-      // Override credits land in distributor + admin wallets and create one
-      // commission_splits row (used by the admin earnings page + slice 6
-      // role-scoped txn views). The split is computed off the RETAILER's
-      // commission, never the recharge amount.
       try {
-        CommissionSplitModel.apply({
+        const split = CommissionSplitModel.apply({
           transactionId: txn.id,
           retailerUserId: req.user.id,
-          retailerCommission: commission,
+          rechargeAmount: parsedAmount,
+          operatorCommissionPct: op.commission_pct,
         });
+        // transactions.commission stores the retailer's NET take (what
+        // they actually keep after upline cuts). Slice 6 detailed pages
+        // and the dashboard rollups read this column.
+        db.prepare('UPDATE transactions SET commission = ? WHERE id = ?')
+          .run(split.retailerAmount, txn.id);
       } catch (err) {
-        // Don't fail the recharge if the override accounting blows up — just log it.
+        // Don't fail the recharge if the split blows up — just log it.
         console.error('[recharge] commission split failed:', err.message);
       }
       notify.recharge({

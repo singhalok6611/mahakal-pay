@@ -42,9 +42,15 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 ('max_recharge', '10000'),
 ('min_fund_request', '500'),
 ('platform_fee_pct', '1.0'),
--- Commission split percentages (slice 3): applied to the retailer's
--- earned commission on every successful recharge. Distributor and admin
--- shares are independent and credited directly to their wallets.
+-- Commission split percentages — ABSOLUTE percentage points of the
+-- recharge amount, NOT a fraction of the retailer commission. On every
+-- successful recharge the operator's commission_pct is the total pool
+-- and the splits are deducted from it (cascading cap so the three pieces
+-- always sum to exactly the operator pct, never go negative).
+--   Example: ₹500 Airtel recharge, operator pct 3% =>
+--     admin       = 0.50% × 500 = ₹2.50
+--     distributor = 0.25% × 500 = ₹1.25
+--     retailer    = 2.25% × 500 = ₹11.25  (sum: ₹15.00)
 ('distributor_share_pct', '0.25'),
 ('admin_share_pct', '0.5');
 
