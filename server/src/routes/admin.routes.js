@@ -42,4 +42,10 @@ router.put('/users/:id/reactivate', AdminController.reactivateUser);
 // Slice 4: admin → any user wallet transfer
 router.post('/wallet/transfer', AdminController.transferToUser);
 
+// Slice 5: notifications inbox
+router.get('/notifications', AdminController.listNotifications);
+router.get('/notifications/count', AdminController.notificationsCount);
+router.put('/notifications/:id/read', AdminController.markNotificationRead);
+router.put('/notifications/read-all', AdminController.markAllNotificationsRead);
+
 module.exports = router;

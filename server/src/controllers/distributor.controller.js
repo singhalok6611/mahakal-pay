@@ -6,6 +6,7 @@ const WithdrawalModel = require('../models/withdrawal.model');
 const { isValidPan, normalizePan } = require('../utils/pan');
 const { shapeRows } = require('../utils/txnVisibility');
 const { validateWithdrawalPayload } = require('../utils/withdrawal');
+const notify = require('../services/notify.service');
 const db = require('../config/db');
 
 const DistributorController = {
@@ -136,6 +137,12 @@ const DistributorController = {
       WalletModel.debit(req.user.id, parseFloat(amount), 'fund_transfer', null, `Transfer to ${retailer.name}`);
       WalletModel.credit(parseInt(retailer_id), parseFloat(amount), 'fund_transfer', null, `Transfer from distributor`);
 
+      notify.walletTransfer({
+        fromName: req.user.name, fromId: req.user.id,
+        toName: retailer.name, toId: retailer.id,
+        amount: parseFloat(amount), direction: 'funded retailer',
+      });
+
       const wallet = WalletModel.getByUserId(req.user.id);
       res.json({ message: 'Balance transferred', balance: wallet.balance });
     } catch (err) {
@@ -153,6 +160,10 @@ const DistributorController = {
       return res.status(400).json({ error: 'Insufficient wallet balance' });
     }
     const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
+    notify.withdrawalCreated({
+      userName: req.user.name, userId: req.user.id,
+      withdrawalId: w.id, amount: payload.amount, method: payload.method,
+    });
     res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });
   },
 

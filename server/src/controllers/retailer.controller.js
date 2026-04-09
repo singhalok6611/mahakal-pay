@@ -4,6 +4,7 @@ const CommissionSplitModel = require('../models/commissionSplit.model');
 const WithdrawalModel = require('../models/withdrawal.model');
 const UserModel = require('../models/user.model');
 const CyrusService = require('../services/cyrus.service');
+const notify = require('../services/notify.service');
 const { shapeRows } = require('../utils/txnVisibility');
 const { validateWithdrawalPayload } = require('../utils/withdrawal');
 const db = require('../config/db');
@@ -114,6 +115,11 @@ const RetailerController = {
     if (cyrusResult.status === 'failed') {
       // Refund the wallet — recharge didn't go through
       WalletModel.credit(req.user.id, parsedAmount, 'refund', txn.id, `Refund for failed recharge #${txn.id}`);
+      notify.recharge({
+        retailerName: req.user.name, retailerId: req.user.id, txnId: txn.id,
+        amount: parsedAmount, status: 'failed',
+        service: service_type, operator: op.name, subscriberId: subscriber_id,
+      });
       const wallet = WalletModel.getByUserId(req.user.id);
       return res.status(400).json({
         error: cyrusResult.message || 'Recharge failed',
@@ -144,6 +150,11 @@ const RetailerController = {
         // Don't fail the recharge if the override accounting blows up — just log it.
         console.error('[recharge] commission split failed:', err.message);
       }
+      notify.recharge({
+        retailerName: req.user.name, retailerId: req.user.id, txnId: txn.id,
+        amount: parsedAmount, status: 'success',
+        service: service_type, operator: op.name, subscriberId: subscriber_id,
+      });
     }
 
     const wallet = WalletModel.getByUserId(req.user.id);
@@ -208,6 +219,10 @@ const RetailerController = {
       return res.status(400).json({ error: 'Insufficient wallet balance' });
     }
     const w = WithdrawalModel.create({ user_id: req.user.id, ...payload });
+    notify.withdrawalCreated({
+      userName: req.user.name, userId: req.user.id,
+      withdrawalId: w.id, amount: payload.amount, method: payload.method,
+    });
     res.status(201).json({ message: 'Withdrawal request submitted', withdrawal: w });
   },
 
@@ -244,6 +259,11 @@ const RetailerController = {
         WalletModel.credit(parent.id, amt, 'wallet_transfer', req.user.id, description || `Transfer from retailer ${me.name}`);
       });
       txn();
+      notify.walletTransfer({
+        fromName: me.name, fromId: me.id,
+        toName: parent.name, toId: parent.id,
+        amount: amt, direction: 'transferred up to distributor',
+      });
       const wallet = WalletModel.getByUserId(req.user.id);
       res.json({ message: 'Transfer successful', balance: wallet ? wallet.balance : 0 });
     } catch (err) {

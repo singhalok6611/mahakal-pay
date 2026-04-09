@@ -6,6 +6,8 @@ const PlatformFeeModel = require('../models/platformFee.model');
 const CommissionSplitModel = require('../models/commissionSplit.model');
 const WithdrawalModel = require('../models/withdrawal.model');
 const RefreshTokenModel = require('../models/refreshToken.model');
+const NotificationModel = require('../models/notification.model');
+const notify = require('../services/notify.service');
 const { isValidPan, normalizePan } = require('../utils/pan');
 const { shapeRows } = require('../utils/txnVisibility');
 const db = require('../config/db');
@@ -19,6 +21,10 @@ const AdminController = {
     const distBalance = WalletModel.getTotalBalanceByRole('distributor');
     const retailerBalance = WalletModel.getTotalBalanceByRole('retailer');
     const todayCommission = TransactionModel.getTodayCommission();
+    // Slice 5: admin earnings rollup (today / 7d / month / lifetime) from
+    // commission_splits — surfaced on the dashboard so the admin sees the
+    // money funnel without clicking into the platform earnings page.
+    const earnings = CommissionSplitModel.totals();
 
     const distCount = userCounts.find(r => r.role === 'distributor')?.count || 0;
     const retailerCount = userCounts.find(r => r.role === 'retailer')?.count || 0;
@@ -90,6 +96,15 @@ const AdminController = {
       },
       paymentRequests: paymentReqStats,
       supportTickets: supportStats,
+      earnings: {
+        admin_today: earnings.admin_today || 0,
+        admin_last_7_days: earnings.admin_last_7_days || 0,
+        admin_this_month: earnings.admin_this_month || 0,
+        admin_total_lifetime: earnings.admin_total_lifetime || 0,
+        distributor_total_lifetime: earnings.distributor_total_lifetime || 0,
+        count: earnings.count || 0,
+      },
+      unreadNotifications: NotificationModel.countUnread(req.user.id),
     });
   },
 
@@ -459,6 +474,10 @@ const AdminController = {
     });
     txn();
 
+    notify.suspension({
+      userName: user.name, userId: user.id, role: user.role, sweptAmount: sweepAmount,
+    });
+
     res.json({
       message: `User suspended${sweepAmount > 0 ? ` and ₹${sweepAmount.toFixed(2)} swept to admin wallet` : ''}`,
       user: UserModel.findById(id),
@@ -481,6 +500,33 @@ const AdminController = {
   },
 
   // ---------- Slice 4: Generic admin → any user wallet transfer ----------
+
+  // ---------- Slice 5: Notifications (admin inbox) ----------
+
+  listNotifications(req, res) {
+    const { page = 1, limit = 50, unread } = req.query;
+    const result = NotificationModel.listByUser(req.user.id, {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      unreadOnly: unread === '1' || unread === 'true',
+    });
+    res.json(result);
+  },
+
+  markNotificationRead(req, res) {
+    const id = parseInt(req.params.id);
+    NotificationModel.markRead(id, req.user.id);
+    res.json({ message: 'Marked as read' });
+  },
+
+  markAllNotificationsRead(req, res) {
+    const r = NotificationModel.markAllRead(req.user.id);
+    res.json({ message: 'All notifications marked as read', changed: r.changed });
+  },
+
+  notificationsCount(req, res) {
+    res.json({ unread: NotificationModel.countUnread(req.user.id) });
+  },
 
   transferToUser(req, res) {
     const { to_user_id, amount, description } = req.body;

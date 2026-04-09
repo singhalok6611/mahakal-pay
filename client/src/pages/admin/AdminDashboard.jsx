@@ -4,7 +4,7 @@ import StatCard from '../../components/common/StatCard';
 import {
   FiCheckCircle, FiClock, FiXCircle, FiRefreshCw, FiUsers,
   FiDollarSign, FiArrowUpCircle, FiArrowDownCircle, FiCreditCard,
-  FiMessageSquare, FiAlertCircle, FiCheckSquare
+  FiMessageSquare, FiAlertCircle, FiCheckSquare, FiTrendingUp
 } from 'react-icons/fi';
 
 export default function AdminDashboard() {
@@ -21,9 +21,30 @@ export default function AdminDashboard() {
   if (loading) return <div className="text-center py-5"><div className="spinner-border" /></div>;
   if (!data) return <div className="text-center py-5 text-danger">Failed to load dashboard</div>;
 
+  const earnings = data.earnings || {};
+  const fmtMoney = (n) => `₹ ${Number(n || 0).toFixed(2)}`;
+
   return (
     <div>
       <h4 className="fw-bold mb-4">Dashboard</h4>
+
+      {/* Slice 5: admin commission earnings — aggregated from
+          commission_splits (slice 3) at all four time windows. */}
+      <h6 className="text-muted mb-3">My Earnings (admin override)</h6>
+      <div className="row g-3 mb-4">
+        <div className="col-6 col-md-3">
+          <StatCard title="Today" value={fmtMoney(earnings.admin_today)} icon={FiTrendingUp} color="success" />
+        </div>
+        <div className="col-6 col-md-3">
+          <StatCard title="Last 7 Days" value={fmtMoney(earnings.admin_last_7_days)} icon={FiTrendingUp} color="primary" />
+        </div>
+        <div className="col-6 col-md-3">
+          <StatCard title="This Month" value={fmtMoney(earnings.admin_this_month)} icon={FiTrendingUp} color="info" />
+        </div>
+        <div className="col-6 col-md-3">
+          <StatCard title={`Lifetime (${earnings.count || 0} txns)`} value={fmtMoney(earnings.admin_total_lifetime)} icon={FiTrendingUp} color="dark" />
+        </div>
+      </div>
 
       {/* Today Recharge */}
       <h6 className="text-muted mb-3">Today Recharge</h6>

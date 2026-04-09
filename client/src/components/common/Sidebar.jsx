@@ -6,7 +6,7 @@ import {
   FiCreditCard, FiHelpCircle, FiSettings, FiShield,
   FiDollarSign, FiList, FiSend, FiChevronDown, FiChevronRight,
   FiPercent, FiLayers, FiBarChart2, FiMessageSquare,
-  FiPlusCircle, FiUserCheck, FiBookOpen
+  FiPlusCircle, FiUserCheck, FiBookOpen, FiBell
 } from 'react-icons/fi';
 
 const menuConfig = {
@@ -53,6 +53,7 @@ const menuConfig = {
         { path: '/admin/support', label: 'Support Tickets' },
       ]
     },
+    { path: '/admin/notifications', icon: FiBell, label: 'Notifications' },
     { path: '/admin/settings', icon: FiSettings, label: 'Settings' },
   ],
   distributor: [

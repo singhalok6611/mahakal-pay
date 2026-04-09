@@ -29,3 +29,9 @@ export const rejectWithdrawal = (id, remarks) => api.put(`/admin/withdrawals/${i
 export const suspendUser = (id) => api.put(`/admin/users/${id}/suspend`);
 export const reactivateUser = (id) => api.put(`/admin/users/${id}/reactivate`);
 export const transferToUser = (data) => api.post('/admin/wallet/transfer', data);
+
+// Slice 5: notifications inbox
+export const getNotifications = (params) => api.get('/admin/notifications', { params });
+export const getNotificationCount = () => api.get('/admin/notifications/count');
+export const markNotificationRead = (id) => api.put(`/admin/notifications/${id}/read`);
+export const markAllNotificationsRead = () => api.put('/admin/notifications/read-all');

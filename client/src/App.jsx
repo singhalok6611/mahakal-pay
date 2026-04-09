@@ -36,6 +36,7 @@ import AdminPlatformEarnings from './pages/admin/AdminPlatformEarnings';
 import AdminRetailerApprovals from './pages/admin/AdminRetailerApprovals';
 import AdminTransactionsDetailed from './pages/admin/AdminTransactionsDetailed';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals';
+import AdminNotifications from './pages/admin/AdminNotifications';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -118,6 +119,7 @@ export default function App() {
               <Route path="admin/payments" element={<AdminPayments />} />
               <Route path="admin/platform-earnings" element={<AdminPlatformEarnings />} />
               <Route path="admin/withdrawals" element={<AdminWithdrawals />} />
+              <Route path="admin/notifications" element={<AdminNotifications />} />
               <Route path="admin/support" element={<AdminSupport />} />
               <Route path="admin/settings" element={<AdminSettings />} />
             </Route>
