@@ -4,6 +4,35 @@ const fs = require('fs');
 const isVercel = !!process.env.VERCEL;
 let db;
 
+// Idempotent migrations for existing databases.
+// SQLite's `CREATE TABLE IF NOT EXISTS` won't add columns to an already-existing
+// table, so any column addition has to go through ALTER TABLE here. Each step is
+// wrapped so re-running on an already-migrated DB is a no-op.
+const MIGRATIONS = [
+  // users.pan
+  { name: 'users.pan',             sql: 'ALTER TABLE users ADD COLUMN pan TEXT' },
+  { name: 'users.pan_index',       sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pan ON users(pan) WHERE pan IS NOT NULL' },
+  // users.approval_status — default 'approved' so existing rows stay valid;
+  // CHECK constraint is enforced at the model layer for migrated DBs.
+  { name: 'users.approval_status', sql: "ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'" },
+  { name: 'users.approval_index',  sql: 'CREATE INDEX IF NOT EXISTS idx_users_approval ON users(approval_status)' },
+];
+
+function runMigrations(target) {
+  for (const m of MIGRATIONS) {
+    try {
+      target.exec(m.sql);
+    } catch (err) {
+      // "duplicate column name" / "index ... already exists" → already migrated, ignore.
+      const msg = String(err && err.message || err);
+      if (/duplicate column|already exists/i.test(msg)) continue;
+      // Anything else is unexpected — surface it loudly.
+      console.error(`[db migration ${m.name}] failed:`, msg);
+      throw err;
+    }
+  }
+}
+
 if (isVercel) {
   // Use sql.js (pure JavaScript SQLite) on Vercel serverless
   const initSqlJs = require('sql.js');
@@ -25,6 +54,9 @@ if (isVercel) {
     // Run schema
     const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
     dbInstance.run(schema);
+
+    // Run idempotent ALTER migrations for already-existing databases
+    runMigrations({ exec: (sql) => dbInstance.run(sql) });
 
     // Run seed
     const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
@@ -135,6 +167,9 @@ if (isVercel) {
 
   const schema = fs.readFileSync(path.join(__dirname, '../db/schema.sql'), 'utf8');
   db.exec(schema);
+
+  // Run idempotent ALTER migrations for already-existing databases
+  runMigrations(db);
 
   const seed = fs.readFileSync(path.join(__dirname, '../db/seed.sql'), 'utf8');
   db.exec(seed);

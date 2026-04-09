@@ -1,8 +1,8 @@
 -- Default Admin User (password: admin123)
-INSERT OR IGNORE INTO users (id, role, name, email, phone, password_hash, status, kyc_status)
-VALUES (1, 'admin', 'Admin', 'admin@mahakal.com', '9999999999',
+INSERT OR IGNORE INTO users (id, role, name, email, phone, pan, password_hash, status, kyc_status, approval_status)
+VALUES (1, 'admin', 'Admin', 'admin@mahakalpay.in', '9999999999', 'AAAPM0001A',
         '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
-        'active', 'approved');
+        'active', 'approved', 'approved');
 
 -- Admin wallet
 INSERT OR IGNORE INTO wallets (user_id, balance) VALUES (1, 100000.00);
@@ -36,48 +36,61 @@ INSERT OR IGNORE INTO operators (name, code, service_type, commission_pct) VALUE
 INSERT OR IGNORE INTO settings (key, value) VALUES
 ('site_name', 'Mahakal Pay'),
 ('site_tagline', 'Instant Recharge & Bill Payments'),
-('support_email', 'support@mahakal.com'),
+('support_email', 'support@mahakalpay.in'),
 ('support_phone', '9999999999'),
 ('min_recharge', '10'),
 ('max_recharge', '10000'),
-('min_fund_request', '500');
+('min_fund_request', '500'),
+('platform_fee_pct', '1.0');
 
 -- =============================================
 -- DEMO SEED DATA
 -- =============================================
 
 -- Distributors (parent_id = 1, i.e. under admin)
-INSERT OR IGNORE INTO users (id, role, name, email, phone, password_hash, status, kyc_status, parent_id, shop_name, city)
+INSERT OR IGNORE INTO users (id, role, name, email, phone, pan, password_hash, status, kyc_status, approval_status, parent_id, shop_name, city)
 VALUES
-(2, 'distributor', 'Rajesh Kumar', 'rajesh@mahakal.com', '9876543210',
+(2, 'distributor', 'Rajesh Kumar', 'rajesh@mahakalpay.in', '9876543210', 'BAAPD0002B',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 1, 'Rajesh Telecom', 'Mumbai'),
-(3, 'distributor', 'Suresh Patel', 'suresh@mahakal.com', '9876543211',
+ 'active', 'approved', 'approved', 1, 'Rajesh Telecom', 'Mumbai'),
+(3, 'distributor', 'Suresh Patel', 'suresh@mahakalpay.in', '9876543211', 'CAAPD0003C',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 1, 'Suresh Mobile Centre', 'Delhi');
+ 'active', 'approved', 'approved', 1, 'Suresh Mobile Centre', 'Delhi');
 
 -- Retailers under Distributor 2 (Rajesh)
-INSERT OR IGNORE INTO users (id, role, name, email, phone, password_hash, status, kyc_status, parent_id, shop_name, city)
+INSERT OR IGNORE INTO users (id, role, name, email, phone, pan, password_hash, status, kyc_status, approval_status, parent_id, shop_name, city)
 VALUES
-(4, 'retailer', 'Amit Sharma', 'amit@mahakal.com', '9988776601',
+(4, 'retailer', 'Amit Sharma', 'amit@mahakalpay.in', '9988776601', 'DAAPR0004D',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 2, 'Amit Recharge Point', 'Mumbai'),
-(5, 'retailer', 'Priya Singh', 'priya@mahakal.com', '9988776602',
+ 'active', 'approved', 'approved', 2, 'Amit Recharge Point', 'Mumbai'),
+(5, 'retailer', 'Priya Singh', 'priya@mahakalpay.in', '9988776602', 'EAAPR0005E',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 2, 'Priya Mobile Shop', 'Pune'),
-(6, 'retailer', 'Vikram Joshi', 'vikram@mahakal.com', '9988776603',
+ 'active', 'approved', 'approved', 2, 'Priya Mobile Shop', 'Pune'),
+(6, 'retailer', 'Vikram Joshi', 'vikram@mahakalpay.in', '9988776603', 'FAAPR0006F',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 2, 'Vikram Communications', 'Mumbai');
+ 'active', 'approved', 'approved', 2, 'Vikram Communications', 'Mumbai');
 
 -- Retailers under Distributor 3 (Suresh)
-INSERT OR IGNORE INTO users (id, role, name, email, phone, password_hash, status, kyc_status, parent_id, shop_name, city)
+INSERT OR IGNORE INTO users (id, role, name, email, phone, pan, password_hash, status, kyc_status, approval_status, parent_id, shop_name, city)
 VALUES
-(7, 'retailer', 'Neha Gupta', 'neha@mahakal.com', '9988776604',
+(7, 'retailer', 'Neha Gupta', 'neha@mahakalpay.in', '9988776604', 'GAAPR0007G',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 3, 'Neha Telecom', 'Delhi'),
-(8, 'retailer', 'Rohan Verma', 'rohan@mahakal.com', '9988776605',
+ 'active', 'approved', 'approved', 3, 'Neha Telecom', 'Delhi'),
+(8, 'retailer', 'Rohan Verma', 'rohan@mahakalpay.in', '9988776605', 'HAAPR0008H',
  '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
- 'active', 'approved', 3, 'Rohan Digital Services', 'Noida');
+ 'active', 'approved', 'approved', 3, 'Rohan Digital Services', 'Noida');
+
+-- Backfill PAN + approval_status for already-seeded rows on databases
+-- where the INSERT OR IGNORE above was a no-op (rows existed before slice 1).
+UPDATE users SET pan = 'AAAPM0001A' WHERE id = 1 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'BAAPD0002B' WHERE id = 2 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'CAAPD0003C' WHERE id = 3 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'DAAPR0004D' WHERE id = 4 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'EAAPR0005E' WHERE id = 5 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'FAAPR0006F' WHERE id = 6 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'GAAPR0007G' WHERE id = 7 AND (pan IS NULL OR pan = '');
+UPDATE users SET pan = 'HAAPR0008H' WHERE id = 8 AND (pan IS NULL OR pan = '');
+UPDATE users SET approval_status = 'approved' WHERE approval_status IS NULL OR approval_status = '';
 
 -- Wallets for all demo users
 INSERT OR IGNORE INTO wallets (user_id, balance) VALUES
