@@ -33,6 +33,7 @@ import AdminRetailers from './pages/admin/AdminRetailers';
 import AdminWalletCredit from './pages/admin/AdminWalletCredit';
 import AdminWalletReport from './pages/admin/AdminWalletReport';
 import AdminPlatformEarnings from './pages/admin/AdminPlatformEarnings';
+import AdminRetailerApprovals from './pages/admin/AdminRetailerApprovals';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -99,6 +100,7 @@ export default function App() {
               <Route path="admin/add-customer" element={<AdminAddCustomer />} />
               <Route path="admin/users/distributors" element={<AdminDistributors />} />
               <Route path="admin/users/retailers" element={<AdminRetailers />} />
+              <Route path="admin/users/retailer-approvals" element={<AdminRetailerApprovals />} />
               <Route path="admin/wallet-credit" element={<AdminWalletCredit />} />
               <Route path="admin/transactions" element={<AdminTransactions />} />
               <Route path="admin/kyc" element={<AdminKYC />} />

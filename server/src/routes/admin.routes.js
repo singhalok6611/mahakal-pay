@@ -24,4 +24,9 @@ router.post('/users/retailer', AdminController.createRetailer);
 router.get('/wallet-transactions', AdminController.getWalletTransactions);
 router.get('/platform-fees', AdminController.platformFees);
 
+// Retailer approval queue
+router.get('/retailer-approvals', AdminController.listPendingRetailers);
+router.put('/retailer-approvals/:id/approve', AdminController.approveRetailer);
+router.put('/retailer-approvals/:id/reject', AdminController.rejectRetailer);
+
 module.exports = router;

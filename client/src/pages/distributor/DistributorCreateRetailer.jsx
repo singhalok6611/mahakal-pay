@@ -9,18 +9,26 @@ export default function DistributorCreateRetailer() {
     email: '',
     phone: '',
     password: '',
+    pan: '',
     shop_name: '',
     city: '',
   });
   const [loading, setLoading] = useState(false);
 
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const pan = form.pan.trim().toUpperCase();
+    if (!PAN_REGEX.test(pan)) {
+      toast.error('PAN must be in format ABCDE1234F');
+      return;
+    }
     setLoading(true);
     try {
-      await createRetailer(form);
-      toast.success('Retailer created successfully!');
-      setForm({ name: '', email: '', phone: '', password: '', shop_name: '', city: '' });
+      await createRetailer({ ...form, pan });
+      toast.success('Retailer created. Pending admin approval.');
+      setForm({ name: '', email: '', phone: '', password: '', pan: '', shop_name: '', city: '' });
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to create retailer');
     } finally {
@@ -90,6 +98,22 @@ export default function DistributorCreateRetailer() {
             </div>
 
             <div className="mb-3">
+              <label className="form-label">PAN Number *</label>
+              <input
+                type="text"
+                className="form-control text-uppercase"
+                placeholder="ABCDE1234F"
+                value={form.pan}
+                maxLength={10}
+                onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })}
+                required
+              />
+              <small className="text-muted">
+                One PAN can have only one account. Retailer will be active after admin approval.
+              </small>
+            </div>
+
+            <div className="mb-3">
               <label className="form-label">Shop Name</label>
               <input
                 type="text"
@@ -112,7 +136,7 @@ export default function DistributorCreateRetailer() {
             </div>
 
             <button type="submit" className="btn btn-primary w-100 py-2 fw-bold" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Retailer'}
+              {loading ? 'Creating...' : 'Create Retailer (Pending Approval)'}
             </button>
           </form>
         </div>

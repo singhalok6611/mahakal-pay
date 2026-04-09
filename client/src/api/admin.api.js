@@ -15,3 +15,8 @@ export const updateSupportTicket = (id, data) => api.put(`/admin/support-tickets
 export const getSettings = () => api.get('/admin/settings');
 export const updateSettings = (data) => api.put('/admin/settings', data);
 export const getWalletTransactions = (params) => api.get('/admin/wallet-transactions', { params });
+
+// Retailer approval queue (slice 2)
+export const getPendingRetailers = (params) => api.get('/admin/retailer-approvals', { params });
+export const approveRetailer = (id) => api.put(`/admin/retailer-approvals/${id}/approve`);
+export const rejectRetailer = (id) => api.put(`/admin/retailer-approvals/${id}/reject`);

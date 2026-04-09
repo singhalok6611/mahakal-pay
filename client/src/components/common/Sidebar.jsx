@@ -24,6 +24,7 @@ const menuConfig = {
         { path: '/admin/add-customer', label: 'Add Customer' },
         { path: '/admin/users/distributors', label: 'Distributors' },
         { path: '/admin/users/retailers', label: 'Retailers' },
+        { path: '/admin/users/retailer-approvals', label: 'Retailer Approvals' },
         { path: '/admin/wallet-credit', label: 'Credits/Debits' },
       ]
     },

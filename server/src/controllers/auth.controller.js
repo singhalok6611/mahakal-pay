@@ -41,6 +41,16 @@ const AuthController = {
     if (user.status !== 'active') {
       return res.status(403).json({ error: 'Account is ' + user.status });
     }
+    // Block login until admin has approved the account (retailers created by
+    // a distributor sit in pending_approval until the admin acts on them).
+    if (user.approval_status && user.approval_status !== 'approved') {
+      return res.status(403).json({
+        error: user.approval_status === 'pending_approval'
+          ? 'Your account is pending admin approval'
+          : 'Your account approval was rejected. Contact your distributor.',
+        approval_status: user.approval_status,
+      });
+    }
 
     const { accessToken, refreshToken } = issueTokens(user, req);
     const wallet = WalletModel.getByUserId(user.id);
@@ -55,9 +65,11 @@ const AuthController = {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        pan: user.pan,
         role: user.role,
         status: user.status,
         kyc_status: user.kyc_status,
+        approval_status: user.approval_status,
       },
       balance: wallet ? wallet.balance : 0,
     });

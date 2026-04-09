@@ -3,6 +3,7 @@ const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
 const PlatformFeeModel = require('../models/platformFee.model');
+const { isValidPan, normalizePan } = require('../utils/pan');
 const db = require('../config/db');
 
 const AdminController = {
@@ -87,10 +88,15 @@ const AdminController = {
   },
 
   createDistributor(req, res) {
-    const { name, email, phone, password, shop_name, address, city, state, pincode } = req.body;
+    const { name, email, phone, password, pan, shop_name, address, city, state, pincode } = req.body;
 
-    if (!name || !email || !phone || !password) {
-      return res.status(400).json({ error: 'Name, email, phone and password are required' });
+    if (!name || !email || !phone || !password || !pan) {
+      return res.status(400).json({ error: 'Name, email, phone, password and PAN are required' });
+    }
+
+    const normalizedPan = normalizePan(pan);
+    if (!isValidPan(normalizedPan)) {
+      return res.status(400).json({ error: 'PAN must be in format ABCDE1234F (5 letters, 4 digits, 1 letter)' });
     }
 
     if (UserModel.findByEmail(email)) {
@@ -99,12 +105,18 @@ const AdminController = {
     if (UserModel.findByPhone(phone)) {
       return res.status(400).json({ error: 'Phone already exists' });
     }
+    if (UserModel.findByPan(normalizedPan)) {
+      return res.status(400).json({ error: 'PAN already registered to another account' });
+    }
 
     const password_hash = bcrypt.hashSync(password, 10);
     const user = UserModel.create({
       parent_id: req.user.id,
       role: 'distributor',
-      name, email, phone, password_hash, shop_name, address, city, state, pincode,
+      name, email, phone, pan: normalizedPan, password_hash,
+      shop_name, address, city, state, pincode,
+      // Admin-created users are auto-approved.
+      approval_status: 'approved',
     });
 
     res.status(201).json({ message: 'Distributor created', user });
@@ -262,10 +274,15 @@ const AdminController = {
   },
 
   createRetailer(req, res) {
-    const { name, email, phone, password, parent_id, shop_name, address, city, state, pincode } = req.body;
+    const { name, email, phone, password, pan, parent_id, shop_name, address, city, state, pincode } = req.body;
 
-    if (!name || !email || !phone || !password || !parent_id) {
-      return res.status(400).json({ error: 'Name, email, phone, password and parent_id are required' });
+    if (!name || !email || !phone || !password || !pan || !parent_id) {
+      return res.status(400).json({ error: 'Name, email, phone, password, PAN and parent_id are required' });
+    }
+
+    const normalizedPan = normalizePan(pan);
+    if (!isValidPan(normalizedPan)) {
+      return res.status(400).json({ error: 'PAN must be in format ABCDE1234F (5 letters, 4 digits, 1 letter)' });
     }
 
     const parent = UserModel.findById(parseInt(parent_id));
@@ -279,15 +296,52 @@ const AdminController = {
     if (UserModel.findByPhone(phone)) {
       return res.status(400).json({ error: 'Phone already exists' });
     }
+    if (UserModel.findByPan(normalizedPan)) {
+      return res.status(400).json({ error: 'PAN already registered to another account' });
+    }
 
     const password_hash = bcrypt.hashSync(password, 10);
     const user = UserModel.create({
       parent_id: parseInt(parent_id),
       role: 'retailer',
-      name, email, phone, password_hash, shop_name, address, city, state, pincode,
+      name, email, phone, pan: normalizedPan, password_hash,
+      shop_name, address, city, state, pincode,
+      // Admin-created retailers are auto-approved (no queue).
+      approval_status: 'approved',
     });
 
     res.status(201).json({ message: 'Retailer created', user });
+  },
+
+  // ---------- Retailer approval queue ----------
+
+  listPendingRetailers(req, res) {
+    const { page = 1, limit = 20 } = req.query;
+    const result = UserModel.listPendingRetailers(parseInt(page), parseInt(limit));
+    res.json(result);
+  },
+
+  approveRetailer(req, res) {
+    const id = parseInt(req.params.id);
+    const user = UserModel.findById(id);
+    if (!user || user.role !== 'retailer') {
+      return res.status(404).json({ error: 'Retailer not found' });
+    }
+    if (user.approval_status === 'approved') {
+      return res.status(400).json({ error: 'Retailer is already approved' });
+    }
+    const updated = UserModel.setApprovalStatus(id, 'approved');
+    res.json({ message: 'Retailer approved', user: updated });
+  },
+
+  rejectRetailer(req, res) {
+    const id = parseInt(req.params.id);
+    const user = UserModel.findById(id);
+    if (!user || user.role !== 'retailer') {
+      return res.status(404).json({ error: 'Retailer not found' });
+    }
+    const updated = UserModel.setApprovalStatus(id, 'rejected');
+    res.json({ message: 'Retailer rejected', user: updated });
   },
 
   getWalletTransactions(req, res) {

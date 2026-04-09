@@ -7,11 +7,13 @@ export default function AdminAddCustomer() {
   const [tab, setTab] = useState('retailer');
   const [distributors, setDistributors] = useState([]);
   const [form, setForm] = useState({
-    name: '', email: '', phone: '', password: '',
+    name: '', email: '', phone: '', password: '', pan: '',
     shop_name: '', city: '', pincode: '', address: '',
     parent_id: ''
   });
   const [loading, setLoading] = useState(false);
+
+  const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
 
   useEffect(() => {
     getUsers({ role: 'distributor' }).then(res => setDistributors(res.data.users || [])).catch(() => {});
@@ -19,17 +21,22 @@ export default function AdminAddCustomer() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const pan = form.pan.trim().toUpperCase();
+    if (!PAN_REGEX.test(pan)) {
+      toast.error('PAN must be in format ABCDE1234F');
+      return;
+    }
     setLoading(true);
     try {
+      const payload = { ...form, pan };
       if (tab === 'distributor') {
-        await createDistributor(form);
+        await createDistributor(payload);
         toast.success('Distributor created!');
       } else {
-        // Create retailer via admin - need custom endpoint or use the distributor's endpoint
-        await api.post('/admin/users/retailer', { ...form, parent_id: parseInt(form.parent_id) });
+        await api.post('/admin/users/retailer', { ...payload, parent_id: parseInt(form.parent_id) });
         toast.success('Retailer created!');
       }
-      setForm({ name: '', email: '', phone: '', password: '', shop_name: '', city: '', pincode: '', address: '', parent_id: '' });
+      setForm({ name: '', email: '', phone: '', password: '', pan: '', shop_name: '', city: '', pincode: '', address: '', parent_id: '' });
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed');
     } finally {
@@ -120,6 +127,21 @@ export default function AdminAddCustomer() {
               <label className="col-md-3 fw-semibold">Address</label>
               <div className="col-md-9">
                 <input type="text" className="form-control" placeholder="Address" value={form.address} onChange={e => setForm({...form, address: e.target.value})} />
+              </div>
+            </div>
+            <div className="row mb-3 align-items-center">
+              <label className="col-md-3 fw-semibold">PAN Number <span className="text-danger">*</span></label>
+              <div className="col-md-9">
+                <input
+                  type="text"
+                  className="form-control text-uppercase"
+                  placeholder="ABCDE1234F"
+                  value={form.pan}
+                  maxLength={10}
+                  onChange={e => setForm({...form, pan: e.target.value.toUpperCase()})}
+                  required
+                />
+                <small className="text-muted">One PAN can have only one account.</small>
               </div>
             </div>
             <div className="row mb-3 align-items-center">

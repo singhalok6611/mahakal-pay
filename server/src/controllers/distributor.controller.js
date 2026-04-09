@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
+const { isValidPan, normalizePan } = require('../utils/pan');
 const db = require('../config/db');
 
 const DistributorController = {
@@ -42,10 +43,15 @@ const DistributorController = {
   },
 
   createRetailer(req, res) {
-    const { name, email, phone, password, shop_name, address, city, state, pincode } = req.body;
+    const { name, email, phone, password, pan, shop_name, address, city, state, pincode } = req.body;
 
-    if (!name || !email || !phone || !password) {
-      return res.status(400).json({ error: 'Name, email, phone and password are required' });
+    if (!name || !email || !phone || !password || !pan) {
+      return res.status(400).json({ error: 'Name, email, phone, password and PAN are required' });
+    }
+
+    const normalizedPan = normalizePan(pan);
+    if (!isValidPan(normalizedPan)) {
+      return res.status(400).json({ error: 'PAN must be in format ABCDE1234F (5 letters, 4 digits, 1 letter)' });
     }
 
     if (UserModel.findByEmail(email)) {
@@ -54,15 +60,24 @@ const DistributorController = {
     if (UserModel.findByPhone(phone)) {
       return res.status(400).json({ error: 'Phone already exists' });
     }
+    if (UserModel.findByPan(normalizedPan)) {
+      return res.status(400).json({ error: 'PAN already registered to another account' });
+    }
 
     const password_hash = bcrypt.hashSync(password, 10);
     const user = UserModel.create({
       parent_id: req.user.id,
       role: 'retailer',
-      name, email, phone, password_hash, shop_name, address, city, state, pincode,
+      name, email, phone, pan: normalizedPan, password_hash,
+      shop_name, address, city, state, pincode,
+      // Distributor-created retailers wait on admin approval before they can log in.
+      approval_status: 'pending_approval',
     });
 
-    res.status(201).json({ message: 'Retailer created', user });
+    res.status(201).json({
+      message: 'Retailer created. Pending admin approval.',
+      user,
+    });
   },
 
   updateRetailer(req, res) {
