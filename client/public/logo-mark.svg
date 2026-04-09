@@ -1,24 +1,44 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Mahakal Pay">
   <title>Mahakal Pay</title>
   <defs>
-    <linearGradient id="mhk-bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="#0a0e2e"/>
-      <stop offset="50%"  stop-color="#1a237e"/>
-      <stop offset="100%" stop-color="#0d1b4a"/>
+    <linearGradient id="mhk-gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#fcd34d"/>
+      <stop offset="50%"  stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="mhk-shield-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#0d1b4a"/>
+      <stop offset="100%" stop-color="#0a0e2e"/>
     </linearGradient>
   </defs>
 
-  <!-- rounded navy badge -->
-  <rect x="6" y="6" width="68" height="68" rx="16" fill="url(#mhk-bg)"/>
-  <!-- subtle inner highlight -->
-  <rect x="6.75" y="6.75" width="66.5" height="66.5" rx="15.25"
-        fill="none" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1"/>
-  <!-- MK initials -->
-  <text x="40" y="54"
-        text-anchor="middle"
-        font-family="Inter, system-ui, -apple-system, sans-serif"
-        font-weight="900"
-        font-size="32"
-        fill="#ffffff"
-        letter-spacing="-1">MK</text>
+  <!-- Shield: dark navy interior with thick gold outline.
+       Top is gently curved down ("U" inverted), sides curve in
+       slightly, bottom comes to a soft point. -->
+  <path d="
+    M 16 14
+    C 16 10, 24 8, 40 8
+    C 56 8, 64 10, 64 14
+    L 64 40
+    C 64 58, 54 70, 40 76
+    C 26 70, 16 58, 16 40
+    Z"
+    fill="url(#mhk-shield-bg)"
+    stroke="url(#mhk-gold)"
+    stroke-width="3.5"
+    stroke-linejoin="round"/>
+
+  <!-- Gold lightning bolt inside the shield, filled solid -->
+  <path d="
+    M 46 18
+    L 28 40
+    L 38 40
+    L 32 62
+    L 52 38
+    L 42 38
+    Z"
+    fill="url(#mhk-gold)"
+    stroke="#b45309"
+    stroke-width="0.6"
+    stroke-linejoin="round"/>
 </svg>
