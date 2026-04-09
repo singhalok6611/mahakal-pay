@@ -80,7 +80,16 @@ export default function LoginPage() {
                     {loading ? 'Signing in...' : 'Sign In'}
                   </button>
                 </form>
-                <div className="text-center mt-4">
+                <div className="text-center mt-3">
+                  <Link
+                    to="/forgot-password"
+                    className="text-decoration-none small"
+                    style={{ color: '#3498db' }}
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <div className="text-center mt-3">
                   <Link to="/" className="text-muted text-decoration-none d-inline-flex align-items-center gap-1" style={{ fontSize: '0.95rem' }}>
                     <FiArrowLeft size={14} /> Back to Home
                   </Link>

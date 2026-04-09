@@ -244,6 +244,23 @@ CREATE TABLE IF NOT EXISTS withdrawal_requests (
 CREATE INDEX IF NOT EXISTS idx_withdrawal_user ON withdrawal_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_withdrawal_status ON withdrawal_requests(status);
 
+-- Password reset tokens (slice 7). Single-use, time-boxed. We store the
+-- bcrypt-style hash of the token, never the raw token, so a DB leak alone
+-- cannot be replayed against the reset endpoint.
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id         INTEGER NOT NULL REFERENCES users(id),
+    token_hash      TEXT NOT NULL UNIQUE,
+    expires_at      DATETIME NOT NULL,
+    used_at         DATETIME,
+    ip_address      TEXT,
+    user_agent      TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_hash ON password_reset_tokens(token_hash);
+
 -- Per-transaction commission split (slice 3).
 -- On every successful retailer recharge we record one row that captures who
 -- earned what: the retailer's gross commission, the distributor's override

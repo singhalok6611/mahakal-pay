@@ -16,6 +16,8 @@ import ContactPage from './pages/public/ContactPage';
 
 // Auth
 import LoginPage from './pages/auth/LoginPage';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 
 // Admin
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -94,8 +96,10 @@ export default function App() {
             <Route path="contact" element={<ContactPage />} />
           </Route>
 
-          {/* Login */}
+          {/* Login + password recovery */}
           <Route path="login" element={<LoginPage />} />
+          <Route path="forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="reset-password" element={<ResetPasswordPage />} />
 
           {/* Admin Routes */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>

@@ -7,6 +7,15 @@ const {
 const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const RefreshTokenModel = require('../models/refreshToken.model');
+const PasswordResetTokenModel = require('../models/passwordResetToken.model');
+const emailService = require('../services/email.service');
+const db = require('../config/db');
+
+const APP_URL = (process.env.APP_URL || 'http://localhost:5173').replace(/\/$/, '');
+// Generic message used for both forgot-password success and "email not
+// found" — we MUST NOT leak whether an account exists for a given email,
+// since that turns the endpoint into an email enumeration oracle.
+const FORGOT_GENERIC_MSG = 'If an account exists for that email, a password reset link has been sent. Check your inbox.';
 
 function issueTokens(user, req) {
   const accessToken = signAccessToken({ id: user.id, role: user.role });
@@ -137,6 +146,76 @@ const AuthController = {
       user,
       balance: wallet ? wallet.balance : 0,
     });
+  },
+
+  // ---------- Slice 7: forgot password / reset password ----------
+
+  async forgotPassword(req, res) {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Always respond with the same generic message regardless of whether
+    // the email exists, to avoid email enumeration. The actual email send
+    // only happens for real users.
+    const user = UserModel.findByEmail(email);
+    if (user && user.status === 'active' && (!user.approval_status || user.approval_status === 'approved')) {
+      try {
+        const { rawToken } = PasswordResetTokenModel.create({
+          userId: user.id,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'],
+        });
+        const resetLink = `${APP_URL}/reset-password?token=${encodeURIComponent(rawToken)}`;
+        // Fire-and-forget: a failed email must NOT change the response
+        // shape (otherwise it leaks). Errors are logged inside email.service.
+        emailService.sendPasswordResetEmail({
+          to: user.email,
+          name: user.name,
+          resetLink,
+        }).catch((err) => console.error('[forgotPassword] email send failed:', err.message));
+      } catch (err) {
+        console.error('[forgotPassword] token create failed:', err.message);
+      }
+    }
+
+    return res.json({ message: FORGOT_GENERIC_MSG });
+  },
+
+  resetPassword(req, res) {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token and new password are required' });
+    }
+    if (typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+
+    const row = PasswordResetTokenModel.findValidByRawToken(token);
+    if (!row) {
+      return res.status(400).json({ error: 'Reset link is invalid or has expired. Please request a new one.' });
+    }
+
+    const user = UserModel.findById(row.user_id);
+    if (!user || user.status !== 'active') {
+      // Burn the token regardless so it can't be retried later.
+      PasswordResetTokenModel.markUsed(row.id);
+      return res.status(400).json({ error: 'Account is not available for reset' });
+    }
+
+    const newHash = bcrypt.hashSync(newPassword, 10);
+    db.prepare('UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(newHash, user.id);
+
+    // Burn this token, every other outstanding reset token for the user,
+    // and every active refresh token — anyone who already had a session
+    // is forced to log in again with the new password.
+    PasswordResetTokenModel.markUsed(row.id);
+    PasswordResetTokenModel.invalidateAllForUser(user.id);
+    try { RefreshTokenModel.revokeAllForUser(user.id); } catch {}
+
+    res.json({ message: 'Password reset successful. Please log in with your new password.' });
   },
 
   changePassword(req, res) {
