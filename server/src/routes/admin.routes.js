@@ -33,6 +33,7 @@ router.put('/retailer-approvals/:id/reject', AdminController.rejectRetailer);
 // Slice 4: withdrawals (admin queue)
 router.get('/withdrawals', AdminController.listWithdrawals);
 router.put('/withdrawals/:id/approve', AdminController.approveWithdrawal);
+router.put('/withdrawals/:id/mark-paid', AdminController.markPaidWithdrawal);
 router.put('/withdrawals/:id/reject', AdminController.rejectWithdrawal);
 
 // Slice 4: suspension with wallet sweep
@@ -55,5 +56,8 @@ router.put('/notifications/read-all', AdminController.markAllNotificationsRead);
 router.get('/float-status', AdminController.floatStatus);
 router.get('/pay2all-deposit', AdminController.pay2allDepositInfo);
 router.get('/reconciliation', AdminController.reconciliationReport);
+
+// Audit log — every sensitive admin write action, append-only.
+router.get('/audit-log', AdminController.listAuditLog);
 
 module.exports = router;

@@ -74,10 +74,13 @@ export default function FloatHealthCard() {
   const Icon = theme.icon;
 
   return (
-    <div className="row g-3 mb-4">
+    // align-items-start so the (shorter) Float Health card doesn't get
+    // stretched to match the (taller) Top Up Pay2All card and end up with
+    // empty white space inside it.
+    <div className="row g-3 mb-4 align-items-start">
       {/* ── Float health summary ───────────────────────────── */}
       <div className="col-lg-7">
-        <div className="card border-0 shadow-sm h-100" style={{ overflow: 'hidden' }}>
+        <div className="card border-0 shadow-sm" style={{ overflow: 'hidden' }}>
           <div className="card-body p-0">
             <div className="d-flex align-items-center gap-3 p-4" style={{ background: theme.bg, color: '#fff' }}>
               <Icon size={40} />
@@ -174,17 +177,18 @@ export default function FloatHealthCard() {
 
                 <div className="mb-2">
                   <small className="text-muted d-block">Account Holder</small>
-                  <div className="fw-semibold">{deposit.account_holder}</div>
+                  <div className="fw-semibold">{deposit.account_holder || <span className="text-muted">—</span>}</div>
                 </div>
 
                 <div className="mb-2 d-flex justify-content-between align-items-center">
                   <div>
                     <small className="text-muted d-block">Virtual A/c Number</small>
-                    <code style={{ fontSize: '0.95rem' }}>{deposit.bank_account_number}</code>
+                    <code style={{ fontSize: '0.95rem' }}>{deposit.bank_account_number || <span className="text-muted">—</span>}</code>
                   </div>
                   <button
                     className="btn btn-sm btn-outline-secondary"
                     onClick={() => copy('Account number', deposit.bank_account_number)}
+                    disabled={!deposit.bank_account_number}
                   >
                     <FiCopy />
                   </button>
@@ -193,11 +197,12 @@ export default function FloatHealthCard() {
                 <div className="mb-2 d-flex justify-content-between align-items-center">
                   <div>
                     <small className="text-muted d-block">IFSC</small>
-                    <code style={{ fontSize: '0.95rem' }}>{deposit.bank_ifsc}</code>
+                    <code style={{ fontSize: '0.95rem' }}>{deposit.bank_ifsc || <span className="text-muted">—</span>}</code>
                   </div>
                   <button
                     className="btn btn-sm btn-outline-secondary"
                     onClick={() => copy('IFSC', deposit.bank_ifsc)}
+                    disabled={!deposit.bank_ifsc}
                   >
                     <FiCopy />
                   </button>
@@ -206,11 +211,12 @@ export default function FloatHealthCard() {
                 <div className="mb-3 d-flex justify-content-between align-items-center">
                   <div>
                     <small className="text-muted d-block">UPI ID</small>
-                    <code style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{deposit.upi_id}</code>
+                    <code style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{deposit.upi_id || <span className="text-muted">—</span>}</code>
                   </div>
                   <button
                     className="btn btn-sm btn-outline-secondary"
                     onClick={() => copy('UPI ID', deposit.upi_id)}
+                    disabled={!deposit.upi_id}
                   >
                     <FiCopy />
                   </button>

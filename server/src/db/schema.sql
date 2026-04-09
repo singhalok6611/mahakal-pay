@@ -222,6 +222,14 @@ CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is
 CREATE INDEX IF NOT EXISTS idx_notifications_date ON notifications(created_at);
 
 -- Wallet → bank/UPI withdrawal requests (admin approves, then wallet is debited)
+-- Withdrawal lifecycle (post-slice 6, two-step payout):
+--   pending  -> admin approves   -> 'approved'  (wallet debited; money is now in platform escrow)
+--   approved -> admin marks paid -> 'processed' (admin enters bank_reference/UTR after the real bank/UPI transfer)
+--   pending  -> admin rejects    -> 'rejected'  (no wallet movement)
+--
+-- bank_reference is the UTR / transaction id of the actual outbound bank
+-- transfer the admin made — required when marking processed so disputes
+-- can be traced to the real bank statement.
 CREATE TABLE IF NOT EXISTS withdrawal_requests (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id             INTEGER NOT NULL REFERENCES users(id),
@@ -235,6 +243,7 @@ CREATE TABLE IF NOT EXISTS withdrawal_requests (
     status              TEXT NOT NULL DEFAULT 'pending'
                         CHECK(status IN ('pending','approved','rejected','processed','failed')),
     admin_remarks       TEXT,
+    bank_reference      TEXT,
     processed_by        INTEGER REFERENCES users(id),
     processed_at        DATETIME,
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -286,3 +295,23 @@ CREATE INDEX IF NOT EXISTS idx_commission_split_txn ON commission_splits(transac
 CREATE INDEX IF NOT EXISTS idx_commission_split_retailer ON commission_splits(retailer_user_id);
 CREATE INDEX IF NOT EXISTS idx_commission_split_distributor ON commission_splits(distributor_user_id);
 CREATE INDEX IF NOT EXISTS idx_commission_split_date ON commission_splits(created_at);
+
+-- Admin audit log: every sensitive write action by an admin user
+-- (suspend, approve withdrawal, reset password, transfer wallet, etc.)
+-- gets one row here so disputes can be traced to a specific admin and
+-- timestamp. Append-only — never updated, never deleted by app code.
+CREATE TABLE IF NOT EXISTS admin_actions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_user_id   INTEGER NOT NULL REFERENCES users(id),
+    action          TEXT NOT NULL,
+    target_type     TEXT,
+    target_id       INTEGER,
+    payload         TEXT,
+    ip_address      TEXT,
+    user_agent      TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_actions_admin ON admin_actions(admin_user_id);
+CREATE INDEX IF NOT EXISTS idx_admin_actions_target ON admin_actions(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_admin_actions_date ON admin_actions(created_at);

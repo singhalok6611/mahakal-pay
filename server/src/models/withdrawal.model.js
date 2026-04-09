@@ -1,14 +1,21 @@
 /**
- * WithdrawalModel — slice 4 wallet → bank/UPI payout flow.
+ * WithdrawalModel — wallet → bank/UPI payout flow.
  *
- * Lifecycle:
- *   pending  -> admin approves -> debits wallet, marks 'processed'
- *            -> admin rejects  -> 'rejected' (no wallet movement)
+ * Two-step lifecycle (post-slice 6, with payout reference workflow):
+ *   pending  -> admin approves   -> 'approved'  (wallet debited; money is now in platform escrow)
+ *   approved -> admin marks paid -> 'processed' (admin enters bank_reference/UTR after the real bank/UPI transfer)
+ *   pending  -> admin rejects    -> 'rejected'  (no wallet movement)
  *
- * In a real BBPS platform, approve would queue an upstream payout API call
- * and the row would only flip to 'processed' once the payout returns
- * success. For now we collapse approve+settle into one step — easy to
- * insert the upstream call between WalletModel.debit and the status flip.
+ * Why two steps: today the admin pays out manually from their bank
+ * account. Splitting "approve" from "mark paid" means:
+ *   1. The wallet debit happens immediately on approve (so the user can't
+ *      double-spend that money while the admin is doing the bank transfer)
+ *   2. The row only reaches 'processed' once the admin records the actual
+ *      bank UTR / transaction reference, giving us a tracable audit trail.
+ *
+ * When we eventually wire a real payout API (Razorpay X / Cashfree /
+ * Pay2All payouts), the markPaid() step is where the upstream call goes,
+ * and the bank_reference becomes whatever id that provider returns.
  */
 
 const db = require('../config/db');
@@ -73,9 +80,9 @@ const WithdrawalModel = {
   },
 
   /**
-   * Approve a withdrawal: debit the user's wallet, mark as processed,
-   * stamp processed_by + processed_at. All in one DB transaction so
-   * either everything happens or nothing does.
+   * Approve a withdrawal: debit the user's wallet (money goes into
+   * platform escrow), flip status to 'approved'. The actual outbound
+   * bank/UPI payout happens later in markPaid().
    */
   async approve(id, adminUserId, remarks) {
     const w = await this.findById(id);
@@ -89,7 +96,7 @@ const WithdrawalModel = {
     }
 
     const txn = db.transaction(async () => {
-      // 1. Debit user wallet
+      // 1. Debit user wallet — money is now in platform escrow.
       await WalletModel.debit(
         w.user_id,
         w.amount,
@@ -97,18 +104,47 @@ const WithdrawalModel = {
         id,
         `Withdrawal #${id} ${w.method === 'bank' ? `to ${w.bank_name || ''} ${w.bank_account_number || ''}`.trim() : `to UPI ${w.upi_id || ''}`}`
       );
-      // 2. Flip status to processed
+      // 2. Flip status to approved (NOT processed — that's the next step).
       await db.prepare(`
         UPDATE withdrawal_requests
-        SET status = 'processed',
+        SET status = 'approved',
             admin_remarks = ?,
-            processed_by = ?,
-            processed_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-      `).run(remarks || null, adminUserId, id);
+      `).run(remarks || null, id);
     });
     await txn();
+    return this.findById(id);
+  },
+
+  /**
+   * Mark an approved withdrawal as actually paid out. Admin records the
+   * UTR / bank transaction reference of the real outbound transfer they
+   * just made from their bank/UPI app. Required: bankReference.
+   *
+   * Wallet has already been debited at the approve step, so this is
+   * purely a metadata + status flip.
+   */
+  async markPaid(id, adminUserId, bankReference, remarks) {
+    if (!bankReference || typeof bankReference !== 'string' || !bankReference.trim()) {
+      throw new Error('bank_reference (UTR / transaction id) is required');
+    }
+    const w = await this.findById(id);
+    if (!w) throw new Error('Withdrawal not found');
+    if (w.status !== 'approved') {
+      throw new Error(`Cannot mark a ${w.status} withdrawal as paid (must be approved first)`);
+    }
+
+    await db.prepare(`
+      UPDATE withdrawal_requests
+      SET status = 'processed',
+          bank_reference = ?,
+          admin_remarks = COALESCE(?, admin_remarks),
+          processed_by = ?,
+          processed_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(bankReference.trim(), remarks || null, adminUserId, id);
     return this.findById(id);
   },
 

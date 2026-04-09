@@ -7,6 +7,8 @@ const CommissionSplitModel = require('../models/commissionSplit.model');
 const WithdrawalModel = require('../models/withdrawal.model');
 const RefreshTokenModel = require('../models/refreshToken.model');
 const NotificationModel = require('../models/notification.model');
+const AdminActionModel = require('../models/adminAction.model');
+const ACTIONS = AdminActionModel.ACTIONS;
 const Pay2AllService = require('../services/pay2all.service');
 const notify = require('../services/notify.service');
 const { isValidPan, normalizePan } = require('../utils/pan');
@@ -32,68 +34,80 @@ function generateRandomPassword(length = 12) {
 
 const AdminController = {
   async dashboard(req, res) {
-    const rechargeStats = await TransactionModel.getTodayStats();
-    const userCounts = await UserModel.countByRole();
-    const distBalance = await WalletModel.getTotalBalanceByRole('distributor');
-    const retailerBalance = await WalletModel.getTotalBalanceByRole('retailer');
-    const todayCommission = await TransactionModel.getTodayCommission();
-    // Slice 5: admin earnings rollup (today / 7d / month / lifetime) from
-    // commission_splits — surfaced on the dashboard so the admin sees the
-    // money funnel without clicking into the platform earnings page.
-    const earnings = await CommissionSplitModel.totals();
+    // Fan out all 12 dashboard queries in parallel — each one is a network
+    // round-trip to Turso, so doing them sequentially adds ~1s of latency
+    // for no reason. Promise.all collapses them into a single wave.
+    const [
+      rechargeStats,
+      userCounts,
+      distBalance,
+      retailerBalance,
+      todayCommission,
+      earnings,
+      todayCreditsRow,
+      todayDebitsRow,
+      todayPaymentReqsRow,
+      paymentReqStats,
+      supportStats,
+      unreadNotifications,
+    ] = await Promise.all([
+      TransactionModel.getTodayStats(),
+      UserModel.countByRole(),
+      WalletModel.getTotalBalanceByRole('distributor'),
+      WalletModel.getTotalBalanceByRole('retailer'),
+      TransactionModel.getTodayCommission(),
+      // Slice 5: admin earnings rollup (today / 7d / month / lifetime) from
+      // commission_splits — surfaced on the dashboard so the admin sees the
+      // money funnel without clicking into the platform earnings page.
+      CommissionSplitModel.totals(),
+      db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as total FROM wallet_transactions
+        WHERE type = 'credit' AND DATE(created_at) = DATE('now')
+      `).get(),
+      db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as total FROM wallet_transactions
+        WHERE type = 'debit' AND DATE(created_at) = DATE('now')
+      `).get(),
+      db.prepare(`
+        SELECT COALESCE(SUM(amount), 0) as total FROM payment_requests
+        WHERE status = 'approved' AND DATE(created_at) = DATE('now')
+      `).get(),
+      // Today Payment Requests breakdown
+      db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as accepted_amount,
+          COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) as accepted_count,
+          COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_amount,
+          COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending_count,
+          COALESCE(SUM(CASE WHEN status = 'rejected' THEN amount ELSE 0 END), 0) as rejected_amount,
+          COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected_count,
+          COALESCE(SUM(amount), 0) as total_amount,
+          COUNT(*) as total_count
+        FROM payment_requests WHERE DATE(created_at) = DATE('now')
+      `).get(),
+      // Today Support Tickets breakdown
+      db.prepare(`
+        SELECT
+          COALESCE(SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END), 0) as open_count,
+          COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) as pending_count,
+          COALESCE(SUM(CASE WHEN status IN ('resolved','closed') THEN 1 ELSE 0 END), 0) as closed_count,
+          COUNT(*) as total_count
+        FROM support_tickets WHERE DATE(created_at) = DATE('now')
+      `).get(),
+      NotificationModel.countUnread(req.user.id),
+    ]);
 
     const distCount = userCounts.find(r => r.role === 'distributor')?.count || 0;
     const retailerCount = userCounts.find(r => r.role === 'retailer')?.count || 0;
 
-    // Today's wallet statement
-    const todayCreditsRow = await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM wallet_transactions
-      WHERE type = 'credit' AND DATE(created_at) = DATE('now')
-    `).get();
     const todayCredits = todayCreditsRow.total;
-
-    const todayDebitsRow = await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM wallet_transactions
-      WHERE type = 'debit' AND DATE(created_at) = DATE('now')
-    `).get();
     const todayDebits = todayDebitsRow.total;
-
-    const todayPaymentReqsRow = await db.prepare(`
-      SELECT COALESCE(SUM(amount), 0) as total FROM payment_requests
-      WHERE status = 'approved' AND DATE(created_at) = DATE('now')
-    `).get();
     const todayPaymentReqs = todayPaymentReqsRow.total;
 
     // Opening balance = total wallet balance at start of day (total - today credits + today debits)
     const totalBalance = distBalance + retailerBalance;
     const openingBalance = totalBalance - todayCredits + todayDebits;
     const closingBalance = totalBalance;
-
-    // Today Payment Requests breakdown
-    const paymentReqStats = await db.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) as accepted_amount,
-        COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) as accepted_count,
-        COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pending_amount,
-        COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending_count,
-        COALESCE(SUM(CASE WHEN status = 'rejected' THEN amount ELSE 0 END), 0) as rejected_amount,
-        COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected_count,
-        COALESCE(SUM(amount), 0) as total_amount,
-        COUNT(*) as total_count
-      FROM payment_requests WHERE DATE(created_at) = DATE('now')
-    `).get();
-
-    // Today Support Tickets breakdown
-    const supportStats = await db.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END), 0) as open_count,
-        COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) as pending_count,
-        COALESCE(SUM(CASE WHEN status IN ('resolved','closed') THEN 1 ELSE 0 END), 0) as closed_count,
-        COUNT(*) as total_count
-      FROM support_tickets WHERE DATE(created_at) = DATE('now')
-    `).get();
-
-    const unreadNotifications = await NotificationModel.countUnread(req.user.id);
 
     res.json({
       recharge: rechargeStats,
@@ -167,6 +181,12 @@ const AdminController = {
       createdByName: req.user.name,
     });
 
+    AdminActionModel.log({
+      req, action: ACTIONS.DISTRIBUTOR_CREATE,
+      targetType: 'user', targetId: user.id,
+      payload: { name: user.name, email: user.email, phone: user.phone, pan: user.pan },
+    });
+
     res.status(201).json({ message: 'Distributor created', user });
   },
 
@@ -202,6 +222,11 @@ const AdminController = {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const updated = await UserModel.update(parseInt(id), req.body);
+    AdminActionModel.log({
+      req, action: ACTIONS.USER_UPDATE,
+      targetType: 'user', targetId: parseInt(id),
+      payload: { changes: req.body },
+    });
     res.json({ message: 'User updated', user: updated });
   },
 
@@ -261,6 +286,11 @@ const AdminController = {
         await db.prepare("UPDATE users SET kyc_status = 'approved', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(kyc.user_id);
       }
     }
+    AdminActionModel.log({
+      req, action: ACTIONS.KYC_UPDATE,
+      targetType: 'kyc_request', targetId: parseInt(id),
+      payload: { status, remarks },
+    });
     res.json({ message: 'KYC updated' });
   },
 
@@ -295,6 +325,12 @@ const AdminController = {
       await WalletModel.credit(request.user_id, request.amount, 'fund_transfer', parseInt(id), 'Payment request approved');
     }
 
+    AdminActionModel.log({
+      req, action: ACTIONS.PAYMENT_REQUEST_UPDATE,
+      targetType: 'payment_request', targetId: parseInt(id),
+      payload: { status, user_id: request.user_id, amount: request.amount },
+    });
+
     res.json({ message: 'Payment request updated' });
   },
 
@@ -306,6 +342,11 @@ const AdminController = {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const result = await WalletModel.credit(parseInt(user_id), parseFloat(amount), 'admin_credit', null, description || 'Admin credit');
+    AdminActionModel.log({
+      req, action: ACTIONS.WALLET_CREDIT,
+      targetType: 'user', targetId: parseInt(user_id),
+      payload: { amount: parseFloat(amount), description, new_balance: result.balance },
+    });
     res.json({ message: 'Wallet credited', balance: result.balance });
   },
 
@@ -331,6 +372,11 @@ const AdminController = {
     const { status } = req.body;
     await db.prepare('UPDATE support_tickets SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(status, parseInt(id));
+    AdminActionModel.log({
+      req, action: ACTIONS.SUPPORT_TICKET_UPDATE,
+      targetType: 'support_ticket', targetId: parseInt(id),
+      payload: { status },
+    });
     res.json({ message: 'Ticket updated' });
   },
 
@@ -350,6 +396,11 @@ const AdminController = {
       }
     });
     await txn();
+    AdminActionModel.log({
+      req, action: ACTIONS.SETTINGS_UPDATE,
+      targetType: 'settings', targetId: null,
+      payload: { keys: entries.map(([k]) => k), values: req.body },
+    });
     res.json({ message: 'Settings updated' });
   },
 
@@ -396,6 +447,12 @@ const AdminController = {
       createdByName: req.user.name,
     });
 
+    AdminActionModel.log({
+      req, action: ACTIONS.RETAILER_CREATE,
+      targetType: 'user', targetId: user.id,
+      payload: { name: user.name, email: user.email, parent_id: parseInt(parent_id) },
+    });
+
     res.status(201).json({ message: 'Retailer created', user });
   },
 
@@ -418,6 +475,11 @@ const AdminController = {
     }
     const updated = await UserModel.setApprovalStatus(id, 'approved');
     notify.retailerApproved({ retailer: updated });
+    AdminActionModel.log({
+      req, action: ACTIONS.RETAILER_APPROVE,
+      targetType: 'user', targetId: id,
+      payload: { name: updated.name, email: updated.email },
+    });
     res.json({ message: 'Retailer approved', user: updated });
   },
 
@@ -429,6 +491,11 @@ const AdminController = {
     }
     const updated = await UserModel.setApprovalStatus(id, 'rejected');
     notify.retailerRejected({ retailer: updated });
+    AdminActionModel.log({
+      req, action: ACTIONS.RETAILER_REJECT,
+      targetType: 'user', targetId: id,
+      payload: { name: updated.name, email: updated.email },
+    });
     res.json({ message: 'Retailer rejected', user: updated });
   },
 
@@ -445,9 +512,40 @@ const AdminController = {
     const { remarks } = req.body || {};
     try {
       const w = await WithdrawalModel.approve(id, req.user.id, remarks);
+      AdminActionModel.log({
+        req, action: ACTIONS.WITHDRAWAL_APPROVE,
+        targetType: 'withdrawal', targetId: id,
+        payload: { user_id: w.user_id, amount: w.amount, method: w.method, remarks },
+      });
+      // Note: do NOT email the user yet — they get emailed when we
+      // actually mark it paid (markPaidWithdrawal). At this point the
+      // money is just in escrow.
+      res.json({ message: 'Withdrawal approved. Wallet debited. Now make the bank transfer and click "Mark Paid" with the UTR.', withdrawal: w });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+
+  /**
+   * Step 2 of the withdrawal payout flow: admin records the actual UTR
+   * after they've made the real bank/UPI transfer. Wallet is already
+   * debited from the approve step — this is purely metadata + status
+   * flip + user notification.
+   */
+  async markPaidWithdrawal(req, res) {
+    const id = parseInt(req.params.id);
+    const { bank_reference, remarks } = req.body || {};
+    try {
+      const w = await WithdrawalModel.markPaid(id, req.user.id, bank_reference, remarks);
       const user = await UserModel.findById(w.user_id);
+      // Now is the right time to email the user — the money has actually moved.
       notify.withdrawalApproved({ user, withdrawal: w });
-      res.json({ message: 'Withdrawal approved and wallet debited', withdrawal: w });
+      AdminActionModel.log({
+        req, action: ACTIONS.WITHDRAWAL_MARK_PAID,
+        targetType: 'withdrawal', targetId: id,
+        payload: { user_id: w.user_id, amount: w.amount, method: w.method, bank_reference: w.bank_reference, remarks },
+      });
+      res.json({ message: 'Withdrawal marked as paid', withdrawal: w });
     } catch (err) {
       res.status(400).json({ error: err.message });
     }
@@ -460,6 +558,11 @@ const AdminController = {
       const w = await WithdrawalModel.reject(id, req.user.id, remarks);
       const user = await UserModel.findById(w.user_id);
       notify.withdrawalRejected({ user, withdrawal: w, remarks });
+      AdminActionModel.log({
+        req, action: ACTIONS.WITHDRAWAL_REJECT,
+        targetType: 'withdrawal', targetId: id,
+        payload: { user_id: w.user_id, amount: w.amount, method: w.method, remarks },
+      });
       res.json({ message: 'Withdrawal rejected', withdrawal: w });
     } catch (err) {
       res.status(400).json({ error: err.message });
@@ -517,6 +620,12 @@ const AdminController = {
 
     notify.suspension({ user, sweptAmount: sweepAmount });
 
+    AdminActionModel.log({
+      req, action: ACTIONS.USER_SUSPEND,
+      targetType: 'user', targetId: id,
+      payload: { name: user.name, role: user.role, swept_amount: sweepAmount },
+    });
+
     const refreshed = await UserModel.findById(id);
     res.json({
       message: `User suspended${sweepAmount > 0 ? ` and ₹${sweepAmount.toFixed(2)} swept to admin wallet` : ''}`,
@@ -536,6 +645,11 @@ const AdminController = {
       return res.status(400).json({ error: 'User is already active' });
     }
     await UserModel.updateStatus(id, 'active');
+    AdminActionModel.log({
+      req, action: ACTIONS.USER_REACTIVATE,
+      targetType: 'user', targetId: id,
+      payload: { name: user.name, role: user.role },
+    });
     const refreshed = await UserModel.findById(id);
     res.json({ message: 'User reactivated', user: refreshed });
   },
@@ -583,6 +697,13 @@ const AdminController = {
 
     // Force the user out of every active session.
     try { await RefreshTokenModel.revokeAllForUser(id); } catch {}
+
+    AdminActionModel.log({
+      req, action: ACTIONS.USER_RESET_PASSWORD,
+      targetType: 'user', targetId: id,
+      // NEVER log the password itself — only that one was generated/set.
+      payload: { name: user.name, email: user.email, role: user.role, generated },
+    });
 
     res.json({
       message: 'Password reset successful. The user must log in again.',
@@ -756,6 +877,11 @@ const AdminController = {
         await WalletModel.credit(target.id, amt, 'wallet_transfer', req.user.id, description || `Transfer from admin`);
       });
       await txn();
+      AdminActionModel.log({
+        req, action: ACTIONS.WALLET_TRANSFER,
+        targetType: 'user', targetId: target.id,
+        payload: { to_name: target.name, amount: amt, description },
+      });
       const adminWallet = await WalletModel.getByUserId(req.user.id);
       res.json({ message: 'Transfer successful', balance: adminWallet ? adminWallet.balance : 0 });
     } catch (err) {
@@ -778,6 +904,22 @@ const AdminController = {
     `).all(...params, parseInt(limit), offset);
     const totalRow = await db.prepare(`SELECT COUNT(*) as count FROM wallet_transactions wt ${where}`).get(...params);
     res.json({ transactions, total: totalRow.count, page: parseInt(page), limit: parseInt(limit) });
+  },
+
+  // ---------- Audit log (slice 9 — admin action history) ----------
+  //
+  // Append-only history of every sensitive admin write. Powers the
+  // disputes / compliance view: "who suspended this user, when, why?"
+  async listAuditLog(req, res) {
+    const { page = 1, limit = 50, action, target_type, admin_user_id } = req.query;
+    const result = await AdminActionModel.list({
+      page: parseInt(page),
+      limit: parseInt(limit),
+      action,
+      targetType: target_type,
+      adminUserId: admin_user_id ? parseInt(admin_user_id) : undefined,
+    });
+    res.json(result);
   },
 
   async platformFees(req, res) {

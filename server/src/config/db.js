@@ -49,10 +49,27 @@ const client = buildClient();
 // is wrapped so re-running on an already-migrated DB is a no-op.
 // ─────────────────────────────────────────────────────────────
 const MIGRATIONS = [
-  { name: 'users.pan',             sql: 'ALTER TABLE users ADD COLUMN pan TEXT' },
-  { name: 'users.pan_index',       sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pan ON users(pan) WHERE pan IS NOT NULL' },
-  { name: 'users.approval_status', sql: "ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'" },
-  { name: 'users.approval_index',  sql: 'CREATE INDEX IF NOT EXISTS idx_users_approval ON users(approval_status)' },
+  { name: 'users.pan',                          sql: 'ALTER TABLE users ADD COLUMN pan TEXT' },
+  { name: 'users.pan_index',                    sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_pan ON users(pan) WHERE pan IS NOT NULL' },
+  { name: 'users.approval_status',              sql: "ALTER TABLE users ADD COLUMN approval_status TEXT NOT NULL DEFAULT 'approved'" },
+  { name: 'users.approval_index',               sql: 'CREATE INDEX IF NOT EXISTS idx_users_approval ON users(approval_status)' },
+  // slice 9 — admin audit log
+  { name: 'admin_actions.table',                sql: `CREATE TABLE IF NOT EXISTS admin_actions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_user_id INTEGER NOT NULL REFERENCES users(id),
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id INTEGER,
+    payload TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )` },
+  { name: 'admin_actions.idx_admin',            sql: 'CREATE INDEX IF NOT EXISTS idx_admin_actions_admin ON admin_actions(admin_user_id)' },
+  { name: 'admin_actions.idx_target',           sql: 'CREATE INDEX IF NOT EXISTS idx_admin_actions_target ON admin_actions(target_type, target_id)' },
+  { name: 'admin_actions.idx_date',             sql: 'CREATE INDEX IF NOT EXISTS idx_admin_actions_date ON admin_actions(created_at)' },
+  // slice 6 — withdrawal payout reference
+  { name: 'withdrawal_requests.bank_reference', sql: 'ALTER TABLE withdrawal_requests ADD COLUMN bank_reference TEXT' },
 ];
 
 async function runMigrations() {

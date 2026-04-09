@@ -4,8 +4,9 @@ VALUES (1, 'admin', 'Admin', 'admin@mahakalpay.in', '9999999999', 'AAAPM0001A',
         '$2a$10$AxEVlMOb/PMXDBiekAAUZOv4O7xm9oMC7eE3Za5r9PuSh7HWKm.1O',
         'active', 'approved', 'approved');
 
--- Admin wallet
-INSERT OR IGNORE INTO wallets (user_id, balance) VALUES (1, 100000.00);
+-- Admin wallet — starts at zero on a fresh DB. Real money flows in via
+-- Pay2All top-ups; nothing is seeded.
+INSERT OR IGNORE INTO wallets (user_id, balance) VALUES (1, 0.00);
 
 -- Mobile Operators
 INSERT OR IGNORE INTO operators (name, code, service_type, commission_pct) VALUES

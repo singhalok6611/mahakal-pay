@@ -312,6 +312,16 @@ const Pay2AllService = {
    *
    * Used by the admin dashboard to show "send money here to top up
    * Pay2All" without making the admin log into erp.pay2all.in.
+   *
+   * Cached for the life of the process. The fields here (account holder,
+   * virtual A/c, IFSC, UPI) are immutable for a Pay2All account — the
+   * only way they can change is if you re-register with Pay2All. So
+   * caching is safe AND papers over the occasional Pay2All response that
+   * omits the bank_account.data block (we serve the last good values
+   * instead of rendering a half-empty card).
+   *
+   * The balance is intentionally NOT cached here — call checkBalance()
+   * for that, which always hits Pay2All live.
    */
   async getDepositInfo() {
     if (!isLive()) {
@@ -320,6 +330,7 @@ const Pay2AllService = {
         message: 'MOCK mode — set PAY2ALL_EMAIL/PASSWORD/ACCOUNT_MOBILE to fetch the virtual deposit account',
       };
     }
+    if (_depositCache) return _depositCache;
     try {
       const token = await fetchToken();
       const { body } = await getJson(`${BASE}/api/user`, {
@@ -328,19 +339,34 @@ const Pay2AllService = {
       });
       const data = body?.data || {};
       const ba = data.bank_account?.data || {};
-      return {
+      const result = {
         configured: true,
-        balance: data.balance?.user_balance ?? null,
+        // Note: balance is intentionally NOT included here. Callers who
+        // want the live balance call checkBalance() separately.
         account_holder: data.name || ba.beneficiary_name || null,
         bank_account_number: ba.virtual_account_number || null,
         bank_ifsc: ba.virtual_ifsc || null,
         upi_id: ba.virtual_upi || null,
         mobile: data.mobile || null,
       };
+      // Only cache if we actually got the immutable bank fields. If
+      // Pay2All occasionally returns the user object without bank_account,
+      // we don't want to lock in a broken response — let the next caller
+      // try again until we see a good one.
+      if (result.bank_account_number && result.upi_id) {
+        _depositCache = result;
+      }
+      return result;
     } catch (err) {
       return { configured: false, error: err.message };
     }
   },
 };
+
+// Process-life cache for getDepositInfo. Pay2All virtual A/c + UPI never
+// change for a given account, so once we have a good response we keep it
+// for the life of the serverless instance. On Vercel each cold start gets
+// a fresh cache, which is fine.
+let _depositCache = null;
 
 module.exports = Pay2AllService;
