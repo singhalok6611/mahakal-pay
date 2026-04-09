@@ -25,6 +25,7 @@ const menuConfig = {
         { path: '/admin/users/distributors', label: 'Distributors' },
         { path: '/admin/users/retailers', label: 'Retailers' },
         { path: '/admin/users/retailer-approvals', label: 'Retailer Approvals' },
+        { path: '/admin/users/credentials', label: 'User Credentials' },
         { path: '/admin/wallet-credit', label: 'Credits/Debits' },
       ]
     },

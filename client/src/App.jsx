@@ -39,6 +39,7 @@ import AdminRetailerApprovals from './pages/admin/AdminRetailerApprovals';
 import AdminTransactionsDetailed from './pages/admin/AdminTransactionsDetailed';
 import AdminWithdrawals from './pages/admin/AdminWithdrawals';
 import AdminNotifications from './pages/admin/AdminNotifications';
+import AdminCredentials from './pages/admin/AdminCredentials';
 
 // Distributor
 import DistributorDashboard from './pages/distributor/DistributorDashboard';
@@ -113,6 +114,7 @@ export default function App() {
               <Route path="admin/users/distributors" element={<AdminDistributors />} />
               <Route path="admin/users/retailers" element={<AdminRetailers />} />
               <Route path="admin/users/retailer-approvals" element={<AdminRetailerApprovals />} />
+              <Route path="admin/users/credentials" element={<AdminCredentials />} />
               <Route path="admin/wallet-credit" element={<AdminWalletCredit />} />
               <Route path="admin/transactions" element={<AdminTransactions />} />
               <Route path="admin/transactions/all" element={<AdminTransactionsDetailed failedOnly={false} />} />

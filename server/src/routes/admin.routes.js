@@ -38,6 +38,9 @@ router.put('/withdrawals/:id/reject', AdminController.rejectWithdrawal);
 // Slice 4: suspension with wallet sweep
 router.put('/users/:id/suspend', AdminController.suspendUser);
 router.put('/users/:id/reactivate', AdminController.reactivateUser);
+// Admin credentials management: reset any non-admin user's password to a
+// new value (returned in the response once, never persisted in plaintext).
+router.post('/users/:id/reset-password', AdminController.resetUserPassword);
 
 // Slice 4: admin → any user wallet transfer
 router.post('/wallet/transfer', AdminController.transferToUser);

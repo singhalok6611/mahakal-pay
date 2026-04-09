@@ -30,6 +30,11 @@ export const suspendUser = (id) => api.put(`/admin/users/${id}/suspend`);
 export const reactivateUser = (id) => api.put(`/admin/users/${id}/reactivate`);
 export const transferToUser = (data) => api.post('/admin/wallet/transfer', data);
 
+// Admin credentials management — reset any non-admin user's password.
+// If newPassword is omitted, the server generates one.
+export const resetUserPassword = (id, newPassword) =>
+  api.post(`/admin/users/${id}/reset-password`, newPassword ? { newPassword } : {});
+
 // Slice 5: notifications inbox
 export const getNotifications = (params) => api.get('/admin/notifications', { params });
 export const getNotificationCount = () => api.get('/admin/notifications/count');
