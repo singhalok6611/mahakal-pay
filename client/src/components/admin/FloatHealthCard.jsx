@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   FiAlertTriangle, FiCheckCircle, FiRefreshCw, FiExternalLink,
   FiCopy, FiSmartphone, FiDollarSign, FiInfo,
@@ -48,22 +48,19 @@ export default function FloatHealthCard() {
       .catch(() => toast.error('Copy failed'));
   };
 
-  // Build the UPI deep link from whatever amount the admin typed.
+  // The Razorpay-issued virtual VPA (rpy.*@icici) refuses direct
+  // consumer UPI deep links — Razorpay only accepts payments to that
+  // VPA via their own checkout session (which is what erp.pay2all.in
+  // uses internally). So instead of generating a upi://pay?... deep
+  // link that fails with "Payment declined by receiver", we route the
+  // UPI button + QR through Pay2All's portal, which DOES work.
+  //
+  // The bank transfer (NEFT/IMPS to the virtual A/c above) is the only
+  // way to top up that doesn't require leaving our portal — that path
+  // uses different rails and is unaffected.
   const upiAmountNum = Math.max(0, parseFloat(topupAmount) || 0);
-  const upiLink = useMemo(() => {
-    if (!deposit?.upi_id || upiAmountNum <= 0) return null;
-    return `upi://pay?pa=${encodeURIComponent(deposit.upi_id)}` +
-           `&pn=${encodeURIComponent(deposit.account_holder || 'Pay2All')}` +
-           `&am=${upiAmountNum}` +
-           `&cu=INR` +
-           `&tn=${encodeURIComponent('Pay2All master top-up')}`;
-  }, [deposit, upiAmountNum]);
-
-  // Server-side QR code via free public API. For desktop users who can't
-  // tap a deep link — they scan this with their phone's UPI app instead.
-  const qrUrl = upiLink
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(upiLink)}`
-    : null;
+  const pay2allCheckoutUrl = 'https://erp.pay2all.in';
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=4&data=${encodeURIComponent(pay2allCheckoutUrl)}`;
 
   if (loading) {
     return <div className="card border-0 shadow-sm p-4 mb-4 text-center text-muted">Loading float status…</div>;
@@ -171,8 +168,8 @@ export default function FloatHealthCard() {
             ) : (
               <>
                 <p className="small text-muted mb-3">
-                  Deposits to this virtual account / UPI ID auto-credit the Pay2All master wallet.
-                  The fastest way to top up is the UPI button below.
+                  Send money via <strong>NEFT / IMPS / RTGS</strong> from any bank app to the
+                  virtual account below. It auto-credits the Pay2All master wallet.
                 </p>
 
                 <div className="mb-2">
@@ -194,7 +191,7 @@ export default function FloatHealthCard() {
                   </button>
                 </div>
 
-                <div className="mb-2 d-flex justify-content-between align-items-center">
+                <div className="mb-3 d-flex justify-content-between align-items-center">
                   <div>
                     <small className="text-muted d-block">IFSC</small>
                     <code style={{ fontSize: '0.95rem' }}>{deposit.bank_ifsc || <span className="text-muted">—</span>}</code>
@@ -235,42 +232,34 @@ export default function FloatHealthCard() {
                   <small className="text-muted">
                     <FiInfo size={11} className="me-1" />
                     Pre-filled with the current shortfall ({status.delta < 0 ? `₹${Math.round(Math.abs(status.delta)).toLocaleString('en-IN')}` : '₹0'}).
-                    You can change it.
                   </small>
                 </div>
 
-                {upiLink ? (
-                  <>
-                    <a
-                      href={upiLink}
-                      className="btn btn-warning w-100 d-inline-flex align-items-center justify-content-center gap-2 fw-bold mb-2"
-                    >
-                      <FiSmartphone />
-                      Pay via UPI (₹{upiAmountNum.toLocaleString('en-IN')})
-                    </a>
-                    <small className="text-muted d-block text-center mb-2">
-                      Tap on phone (opens your UPI app) — or scan the QR below from desktop.
-                    </small>
-                    {qrUrl && (
-                      <div className="text-center p-2" style={{ background: '#f8f9ff', borderRadius: 12 }}>
-                        <img
-                          src={qrUrl}
-                          alt={`UPI QR for ₹${upiAmountNum}`}
-                          width={180}
-                          height={180}
-                          style={{ display: 'block', margin: '0 auto' }}
-                        />
-                        <small className="text-muted d-block mt-1">
-                          Scan with any UPI app · ₹{upiAmountNum.toLocaleString('en-IN')}
-                        </small>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="alert alert-info small mb-0">
-                    Enter an amount above to generate the UPI payment link + QR code.
-                  </div>
-                )}
+                <a
+                  href={pay2allCheckoutUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-warning w-100 d-inline-flex align-items-center justify-content-center gap-2 fw-bold mb-2"
+                >
+                  <FiSmartphone />
+                  Pay via UPI{upiAmountNum > 0 ? ` (₹${upiAmountNum.toLocaleString('en-IN')})` : ''}
+                </a>
+                <small className="text-muted d-block text-center mb-2">
+                  Opens Pay2All checkout — UPI works there. (Direct UPI to the VPA above
+                  is rejected by Razorpay.)
+                </small>
+                <div className="text-center p-2" style={{ background: '#f8f9ff', borderRadius: 12 }}>
+                  <img
+                    src={qrUrl}
+                    alt="QR to open Pay2All portal"
+                    width={180}
+                    height={180}
+                    style={{ display: 'block', margin: '0 auto' }}
+                  />
+                  <small className="text-muted d-block mt-1">
+                    Scan to open Pay2All on your phone
+                  </small>
+                </div>
               </>
             )}
           </div>
