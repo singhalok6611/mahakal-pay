@@ -1,6 +1,6 @@
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
-const PlatformFeeModel = require('../models/platformFee.model');
+const CommissionSplitModel = require('../models/commissionSplit.model');
 const CyrusService = require('../services/cyrus.service');
 const db = require('../config/db');
 
@@ -97,19 +97,28 @@ const RetailerController = {
       });
     }
 
-    // 5) On success: pay commission to retailer + apply 1% platform fee to admin
+    // 5) On success: pay commission to retailer, then split the upline overrides
+    //    (slice 3 — replaces the old flat "1% platform fee to admin" model).
     if (cyrusResult.status === 'success') {
       const commission = Math.round(((parsedAmount * op.commission_pct) / 100) * 100) / 100;
       if (commission > 0) {
         WalletModel.credit(req.user.id, commission, 'commission', txn.id, `Commission for ${service_type} recharge`);
         db.prepare('UPDATE transactions SET commission = ? WHERE id = ?').run(commission, txn.id);
       }
-      PlatformFeeModel.apply({
-        userId: req.user.id,
-        sourceType: 'recharge',
-        sourceId: txn.id,
-        baseAmount: parsedAmount,
-      });
+      // Override credits land in distributor + admin wallets and create one
+      // commission_splits row (used by the admin earnings page + slice 6
+      // role-scoped txn views). The split is computed off the RETAILER's
+      // commission, never the recharge amount.
+      try {
+        CommissionSplitModel.apply({
+          transactionId: txn.id,
+          retailerUserId: req.user.id,
+          retailerCommission: commission,
+        });
+      } catch (err) {
+        // Don't fail the recharge if the override accounting blows up — just log it.
+        console.error('[recharge] commission split failed:', err.message);
+      }
     }
 
     const wallet = WalletModel.getByUserId(req.user.id);

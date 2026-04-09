@@ -17,44 +17,80 @@ export default function AdminPlatformEarnings() {
   if (!data) return <div className="alert alert-warning">Failed to load platform earnings</div>;
 
   const t = data.totals || {};
+  const config = data.config || { distributor_share_pct: 0, admin_share_pct: 0 };
+  const sum = data.sum || {};
+  const topup = data.topupTotals || {};
+
+  const fmt = (n) => `₹ ${Number(n || 0).toFixed(2)}`;
 
   return (
     <div>
-      <h4 className="fw-bold mb-4">
+      <h4 className="fw-bold mb-2">
         <FiTrendingUp className="me-2" />
-        Platform Earnings ({data.feePct}% auto-fee)
+        Platform Earnings
       </h4>
+      <p className="text-muted small mb-4">
+        Admin override on every retailer commission: <strong>{config.admin_share_pct}%</strong> to admin, <strong>{config.distributor_share_pct}%</strong> to the retailer's distributor.
+        Both are credited directly to the respective wallets on each successful recharge.
+      </p>
 
       <div className="row g-3 mb-4">
         <div className="col-md-3">
           <div className="card border-0 shadow-sm">
             <div className="card-body text-center">
-              <small className="text-muted d-block">Today</small>
-              <h4 className="text-success mb-0">₹ {Number(t.today || 0).toFixed(2)}</h4>
+              <small className="text-muted d-block">Today (admin)</small>
+              <h4 className="text-success mb-0">{fmt(t.admin_today)}</h4>
             </div>
           </div>
         </div>
         <div className="col-md-3">
           <div className="card border-0 shadow-sm">
             <div className="card-body text-center">
-              <small className="text-muted d-block">Last 7 Days</small>
-              <h4 className="text-primary mb-0">₹ {Number(t.last_7_days || 0).toFixed(2)}</h4>
+              <small className="text-muted d-block">Last 7 Days (admin)</small>
+              <h4 className="text-primary mb-0">{fmt(t.admin_last_7_days)}</h4>
             </div>
           </div>
         </div>
         <div className="col-md-3">
           <div className="card border-0 shadow-sm">
             <div className="card-body text-center">
-              <small className="text-muted d-block">This Month</small>
-              <h4 className="text-info mb-0">₹ {Number(t.this_month || 0).toFixed(2)}</h4>
+              <small className="text-muted d-block">This Month (admin)</small>
+              <h4 className="text-info mb-0">{fmt(t.admin_this_month)}</h4>
             </div>
           </div>
         </div>
         <div className="col-md-3">
           <div className="card border-0 shadow-sm">
             <div className="card-body text-center">
-              <small className="text-muted d-block">Lifetime ({t.count || 0} txns)</small>
-              <h4 className="text-dark mb-0">₹ {Number(t.total_lifetime || 0).toFixed(2)}</h4>
+              <small className="text-muted d-block">Lifetime (admin, {t.count || 0} txns)</small>
+              <h4 className="text-dark mb-0">{fmt(t.admin_total_lifetime)}</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-3 mb-4">
+        <div className="col-md-4">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <small className="text-muted d-block">Distributor overrides paid (lifetime)</small>
+              <h5 className="mb-0 text-primary">{fmt(t.distributor_total_lifetime)}</h5>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <small className="text-muted d-block">Retailer commission base (this view)</small>
+              <h5 className="mb-0">{fmt(sum.retailer_commission_total)}</h5>
+            </div>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="card border-0 shadow-sm h-100">
+            <div className="card-body">
+              <small className="text-muted d-block">Razorpay top-up fees (legacy 1%, lifetime)</small>
+              <h5 className="mb-0 text-secondary">{fmt(topup.total_lifetime)}</h5>
             </div>
           </div>
         </div>
@@ -62,38 +98,48 @@ export default function AdminPlatformEarnings() {
 
       <div className="card border-0 shadow-sm">
         <div className="card-header bg-light">
-          <h6 className="mb-0">Recent Platform Fee Collections</h6>
+          <h6 className="mb-0">Recent Commission Splits</h6>
         </div>
         <div className="card-body p-0">
           <div className="table-responsive">
-            <table className="table table-sm mb-0">
+            <table className="table table-sm mb-0 align-middle">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>Date</th>
-                  <th>User</th>
-                  <th>Source</th>
-                  <th className="text-end">Base Amount</th>
-                  <th className="text-end">Fee %</th>
-                  <th className="text-end">Earned</th>
+                  <th>Retailer</th>
+                  <th>Distributor</th>
+                  <th>Service</th>
+                  <th className="text-end">Recharge ₹</th>
+                  <th className="text-end">Retailer commission</th>
+                  <th className="text-end">Distributor share</th>
+                  <th className="text-end">Admin share</th>
                 </tr>
               </thead>
               <tbody>
-                {data.rows.length === 0 && (
-                  <tr><td colSpan="7" className="text-center text-muted py-4">No platform fees collected yet</td></tr>
+                {(!data.rows || data.rows.length === 0) && (
+                  <tr><td colSpan="9" className="text-center text-muted py-4">No commission splits yet</td></tr>
                 )}
-                {data.rows.map((r) => (
+                {data.rows && data.rows.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.id}</td>
-                    <td>{new Date(r.created_at).toLocaleString()}</td>
+                    <td>{r.transaction_id}</td>
+                    <td><small>{new Date(r.created_at).toLocaleString()}</small></td>
+                    <td>{r.retailer_name || '—'}</td>
+                    <td>{r.distributor_name || '—'}</td>
                     <td>
-                      {r.user_name}
-                      <small className="text-muted d-block">{r.user_role}</small>
+                      <span className="badge bg-secondary text-uppercase">{r.service_type}</span>
+                      <small className="text-muted d-block">{r.operator} · {r.subscriber_id}</small>
                     </td>
-                    <td><span className="badge bg-secondary">{r.source_type}</span> #{r.source_id}</td>
-                    <td className="text-end">₹ {Number(r.base_amount).toFixed(2)}</td>
-                    <td className="text-end">{Number(r.fee_pct).toFixed(2)}%</td>
-                    <td className="text-end text-success fw-bold">₹ {Number(r.fee_amount).toFixed(2)}</td>
+                    <td className="text-end">{fmt(r.recharge_amount)}</td>
+                    <td className="text-end">{fmt(r.retailer_commission_amount)}</td>
+                    <td className="text-end text-primary">
+                      {fmt(r.distributor_share_amount)}
+                      <small className="text-muted d-block">{r.distributor_share_pct}%</small>
+                    </td>
+                    <td className="text-end text-success fw-bold">
+                      {fmt(r.admin_share_amount)}
+                      <small className="text-muted d-block">{r.admin_share_pct}%</small>
+                    </td>
                   </tr>
                 ))}
               </tbody>

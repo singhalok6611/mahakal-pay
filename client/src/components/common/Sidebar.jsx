@@ -42,7 +42,7 @@ const menuConfig = {
     {
       icon: FiCreditCard, label: 'Payment', children: [
         { path: '/admin/payments', label: 'Payment Requests' },
-        { path: '/admin/platform-earnings', label: 'Platform Earnings (1%)' },
+        { path: '/admin/platform-earnings', label: 'Platform Earnings' },
       ]
     },
     {

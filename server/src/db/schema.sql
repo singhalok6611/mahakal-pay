@@ -243,3 +243,29 @@ CREATE TABLE IF NOT EXISTS withdrawal_requests (
 
 CREATE INDEX IF NOT EXISTS idx_withdrawal_user ON withdrawal_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_withdrawal_status ON withdrawal_requests(status);
+
+-- Per-transaction commission split (slice 3).
+-- On every successful retailer recharge we record one row that captures who
+-- earned what: the retailer's gross commission, the distributor's override
+-- (default 0.25% of the retailer commission) and the admin's override
+-- (default 0.5% of the retailer commission). The wallet credits are written
+-- in parallel into wallet_transactions; this table is the canonical join
+-- target for the role-scoped All Transactions / Failed Transactions pages.
+CREATE TABLE IF NOT EXISTS commission_splits (
+    id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_id              INTEGER NOT NULL REFERENCES transactions(id),
+    retailer_user_id            INTEGER NOT NULL REFERENCES users(id),
+    retailer_commission_amount  REAL NOT NULL,
+    distributor_user_id         INTEGER REFERENCES users(id),
+    distributor_share_pct       REAL NOT NULL DEFAULT 0,
+    distributor_share_amount    REAL NOT NULL DEFAULT 0,
+    admin_user_id               INTEGER NOT NULL REFERENCES users(id),
+    admin_share_pct             REAL NOT NULL DEFAULT 0,
+    admin_share_amount          REAL NOT NULL DEFAULT 0,
+    created_at                  DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_commission_split_txn ON commission_splits(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_commission_split_retailer ON commission_splits(retailer_user_id);
+CREATE INDEX IF NOT EXISTS idx_commission_split_distributor ON commission_splits(distributor_user_id);
+CREATE INDEX IF NOT EXISTS idx_commission_split_date ON commission_splits(created_at);

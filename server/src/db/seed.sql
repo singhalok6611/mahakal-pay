@@ -41,7 +41,12 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
 ('min_recharge', '10'),
 ('max_recharge', '10000'),
 ('min_fund_request', '500'),
-('platform_fee_pct', '1.0');
+('platform_fee_pct', '1.0'),
+-- Commission split percentages (slice 3): applied to the retailer's
+-- earned commission on every successful recharge. Distributor and admin
+-- shares are independent and credited directly to their wallets.
+('distributor_share_pct', '0.25'),
+('admin_share_pct', '0.5');
 
 -- =============================================
 -- DEMO SEED DATA

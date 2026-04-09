@@ -3,6 +3,7 @@ const UserModel = require('../models/user.model');
 const WalletModel = require('../models/wallet.model');
 const TransactionModel = require('../models/transaction.model');
 const PlatformFeeModel = require('../models/platformFee.model');
+const CommissionSplitModel = require('../models/commissionSplit.model');
 const { isValidPan, normalizePan } = require('../utils/pan');
 const db = require('../config/db');
 
@@ -362,10 +363,24 @@ const AdminController = {
   },
 
   platformFees(req, res) {
+    // Slice 3: this endpoint now reads from commission_splits (the new
+    // 0.25% / 0.5% override model). The legacy `platform_fees` table is
+    // kept for historical top-up fee data and is no longer written by the
+    // recharge path. Razorpay top-ups still use platform_fees because the
+    // user only changed retailer commission economics — top-up fees are
+    // a separate revenue line.
     const { page = 1, limit = 50, from, to } = req.query;
-    const list = PlatformFeeModel.list({ page: parseInt(page), limit: parseInt(limit), from, to });
-    const totals = PlatformFeeModel.totals();
-    res.json({ ...list, totals, feePct: PlatformFeeModel.getFeePct() });
+    const list = CommissionSplitModel.list({ page: parseInt(page), limit: parseInt(limit), from, to });
+    const totals = CommissionSplitModel.totals();
+    const config = CommissionSplitModel.getSplitConfig();
+    // Legacy top-up fee history (kept for the same page, separate section).
+    const topupTotals = PlatformFeeModel.totals();
+    res.json({
+      ...list,
+      totals,
+      config,
+      topupTotals,
+    });
   },
 };
 
