@@ -8,8 +8,9 @@ export default function PublicNavbar() {
   return (
     <nav className="navbar navbar-expand-lg navbar-dark public-navbar sticky-top">
       <div className="container">
-        <Link className="navbar-brand fw-bold" to="/">
-          <span className="text-warning">MAHAKAL</span> PAY
+        <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/">
+          <img src="/logo-mark.svg" alt="" width="36" height="36" />
+          <span><span className="text-warning">MAHAKAL</span> PAY</span>
         </Link>
         <button
           className="navbar-toggler border-0"

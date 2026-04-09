@@ -30,6 +30,7 @@ export default function ForgotPasswordPage() {
             <div className="card shadow-lg border-0">
               <div className="card-body p-4 p-md-5">
                 <div className="text-center mb-4">
+                  <img src="/logo-mark.svg" alt="Mahakal Pay" width="64" height="64" className="mb-2" />
                   <h3 className="fw-bold mb-1">
                     <span className="text-warning">MAHAKAL</span>{' '}
                     <span className="text-primary">PAY</span>

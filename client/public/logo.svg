@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" role="img" aria-label="Mahakal Pay">
+  <title>Mahakal Pay — Instant Recharge &amp; Bill Payments</title>
+  <defs>
+    <linearGradient id="mahakal-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1b4a"/>
+      <stop offset="50%" stop-color="#1a237e"/>
+      <stop offset="100%" stop-color="#4a148c"/>
+    </linearGradient>
+  </defs>
+  <!-- icon (same as logo-mark.svg, embedded) -->
+  <g transform="translate(8 8)">
+    <rect width="64" height="64" rx="14" fill="url(#mahakal-bg)"/>
+    <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
+    <path d="M14 46 L14 14 L32 32 L50 14 L50 46"
+          fill="none" stroke="#ffffff" stroke-width="7"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="20" y1="54" x2="44" y2="54"
+          stroke="#ffc107" stroke-width="3" stroke-linecap="round"/>
+  </g>
+  <!-- wordmark -->
+  <text x="88" y="46" font-family="Inter, system-ui, -apple-system, sans-serif"
+        font-weight="900" font-size="30" fill="#ffc107" letter-spacing="-0.5">MAHAKAL</text>
+  <text x="232" y="46" font-family="Inter, system-ui, -apple-system, sans-serif"
+        font-weight="800" font-size="30" fill="#1a237e" letter-spacing="-0.5">PAY</text>
+  <text x="89" y="64" font-family="Inter, system-ui, -apple-system, sans-serif"
+        font-weight="500" font-size="9" fill="#6b7280" letter-spacing="2.2">INSTANT RECHARGE &amp; BILL PAYMENTS</text>
+</svg>

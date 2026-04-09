@@ -7,15 +7,11 @@
       <stop offset="100%" stop-color="#4a148c"/>
     </linearGradient>
   </defs>
-  <!-- badge -->
   <rect width="64" height="64" rx="14" fill="url(#mahakal-bg)"/>
-  <!-- subtle inner highlight for depth -->
   <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="13.25" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1"/>
-  <!-- stylised M -->
   <path d="M14 46 L14 14 L32 32 L50 14 L50 46"
         fill="none" stroke="#ffffff" stroke-width="7"
         stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- gold underline accent -->
   <line x1="20" y1="54" x2="44" y2="54"
         stroke="#ffc107" stroke-width="3" stroke-linecap="round"/>
 </svg>

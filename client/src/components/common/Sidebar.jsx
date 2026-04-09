@@ -193,13 +193,16 @@ export default function Sidebar({ show, onClose }) {
     <>
       {show && <div className="sidebar-overlay" onClick={onClose} />}
       <nav className={`sidebar ${show ? 'show' : ''}`}>
-        <div className="sidebar-header">
-          <h5 className="mb-1 text-white fw-bold">
-            <span className="text-warning">MAHAKAL</span> PAY
-          </h5>
-          <small className="text-white-50 text-capitalize" style={{ fontSize: '0.8rem', letterSpacing: '1px' }}>
-            {user?.role === 'admin' ? 'Super Admin' : user?.role === 'distributor' ? 'Super Distributor' : 'Retailer'} Panel
-          </small>
+        <div className="sidebar-header d-flex align-items-center gap-2">
+          <img src="/logo-mark.svg" alt="" width="38" height="38" style={{ flexShrink: 0 }} />
+          <div>
+            <h5 className="mb-0 text-white fw-bold">
+              <span className="text-warning">MAHAKAL</span> PAY
+            </h5>
+            <small className="text-white-50 text-capitalize" style={{ fontSize: '0.75rem', letterSpacing: '1px' }}>
+              {user?.role === 'admin' ? 'Super Admin' : user?.role === 'distributor' ? 'Super Distributor' : 'Retailer'} Panel
+            </small>
+          </div>
         </div>
         <ul className="nav flex-column sidebar-nav">
           {menu.map((item, i) => (
